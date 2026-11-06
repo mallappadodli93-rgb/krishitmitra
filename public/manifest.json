@@ -1,0 +1,50 @@
+{
+  "name": "KrishiMitra – Smart Farming Assistant (ಕೃಷಿಮಿತ್ರ)",
+  "short_name": "KrishiMitra",
+  "description": "Smart farming assistant for Indian farmers with offline agronomy guides, crop recommendations, plant disease detection, and hyperlocal weather updates.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#F8FAF8",
+  "theme_color": "#047857",
+  "lang": "kn",
+  "categories": ["agriculture", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Crop Advisory",
+      "url": "/#crop-recommendation",
+      "description": "Scientific crop recommendations for your soil and season"
+    },
+    {
+      "name": "Plant Doctor",
+      "url": "/#disease-detection",
+      "description": "Leaf disease detection and organic remedies"
+    },
+    {
+      "name": "Agro Weather",
+      "url": "/#weather",
+      "description": "Hyperlocal rain and spray window forecast"
+    },
+    {
+      "name": "Farmer Dashboard",
+      "url": "/#dashboard",
+      "description": "Your personalized farmer portal"
+    }
+  ]
+}
+

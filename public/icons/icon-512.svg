@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+    <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#10b981" stroke-width="8" stroke-dasharray="16 12" opacity="0.4" />
+  
+  <!-- Sprout Stem & Leaf Design -->
+  <g transform="translate(64, 64) scale(0.75)">
+    <!-- Main stem -->
+    <path d="M256 460 C256 340 230 240 160 160 C240 180 320 250 320 380 L256 460 Z" fill="#6ee7b7" opacity="0.9" />
+    <!-- Left Leaf -->
+    <path d="M210 280 C110 260 70 170 100 90 C180 80 240 150 220 260 Z" fill="url(#leafGrad)" />
+    <!-- Right Leaf -->
+    <path d="M260 220 C340 160 410 170 430 250 C360 290 280 280 260 220 Z" fill="#34d399" />
+    <!-- Center Vein -->
+    <path d="M100 90 C150 160 200 220 220 260" stroke="#047857" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.6" />
+    <path d="M430 250 C370 240 310 230 260 220" stroke="#047857" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.6" />
+  </g>
+  
+  <!-- Text Label -->
+  <text x="256" y="445" font-family="system-ui, -apple-system, sans-serif" font-size="44" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="2">KRISHIMITRA</text>
+  <text x="256" y="480" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" fill="#a7f3d0" text-anchor="middle" letter-spacing="1">ಕೃಷಿಮಿತ್ರ • PWA</text>
+</svg>
+
