@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="grad192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="100%" stop-color="#064e3b" />
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="48" fill="url(#grad192)" />
+  <g transform="translate(24, 20) scale(0.28)">
+    <path d="M256 460 C256 340 230 240 160 160 C240 180 320 250 320 380 L256 460 Z" fill="#6ee7b7" />
+    <path d="M210 280 C110 260 70 170 100 90 C180 80 240 150 220 260 Z" fill="#a7f3d0" />
+    <path d="M260 220 C340 160 410 170 430 250 C360 290 280 280 260 220 Z" fill="#34d399" />
+  </g>
+  <text x="96" y="166" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="1">KRISHIMITRA</text>
+</svg>
+
