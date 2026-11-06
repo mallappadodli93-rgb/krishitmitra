@@ -32,7 +32,12 @@ import {
   setPrimaryFarmLocationInDB,
   getAllDiseaseScansFromDB,
   saveDiseaseScanToDB,
-  deleteDiseaseScanFromDB
+  deleteDiseaseScanFromDB,
+  getAllChatSessionsFromDB,
+  getChatSessionByIdFromDB,
+  saveChatSessionToDB,
+  deleteChatSessionFromDB,
+  clearAllChatSessionsFromDB
 } from '../utils/indexedDBStorage';
 
 import {
@@ -338,6 +343,55 @@ export async function deleteDiseaseScan(id) {
     return await deleteDiseaseScanFromDB(id);
   } catch (err) {
     console.error('Failed to delete disease scan from IndexedDB:', err);
+    throw err;
+  }
+}
+
+// ==========================================
+// 7. AI Chatbot Sessions Repository
+// ==========================================
+
+export async function fetchChatSessions() {
+  try {
+    return await getAllChatSessionsFromDB();
+  } catch (err) {
+    console.error('Failed to fetch chat sessions:', err);
+    return [];
+  }
+}
+
+export async function fetchChatSessionById(id) {
+  try {
+    return await getChatSessionByIdFromDB(id);
+  } catch (err) {
+    console.error('Failed to fetch chat session:', err);
+    return null;
+  }
+}
+
+export async function saveChatSession(session) {
+  try {
+    return await saveChatSessionToDB(session);
+  } catch (err) {
+    console.error('Failed to save chat session:', err);
+    throw err;
+  }
+}
+
+export async function deleteChatSession(id) {
+  try {
+    return await deleteChatSessionFromDB(id);
+  } catch (err) {
+    console.error('Failed to delete chat session:', err);
+    throw err;
+  }
+}
+
+export async function clearAllChatSessions() {
+  try {
+    return await clearAllChatSessionsFromDB();
+  } catch (err) {
+    console.error('Failed to clear chat sessions:', err);
     throw err;
   }
 }

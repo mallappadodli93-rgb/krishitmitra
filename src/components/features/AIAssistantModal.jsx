@@ -2,30 +2,33 @@ import React, { useState } from 'react';
 import { Bot, Send, Sparkles, User, HelpCircle, PhoneCall, Check } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
+import { sendChatMessage } from '../../services/aiChatService';
 
 const initialMessages = [
   {
     sender: 'bot',
-    text: 'Namaste Kisan Bhai! 🙏 I am KrishiMitra AI, your 24/7 smart farming advisor. How can I assist you with your crops, soil, or weather today?',
+    text: 'Namaste Kisan Bhai! 🙏 I am KrishiMitra AI, your 24/7 intelligent farming advisor. How can I assist you with your crops, soil, pests, or irrigation today?',
     time: 'Just now'
   }
 ];
 
-const sampleQA = {
-  "How to control yellow rust on wheat?": "Yellow rust appears as orange-yellow stripe pustules on wheat leaves. If detected early, spray Propiconazole 25% EC (Tilt) @ 1 ml per litre of water immediately. Avoid applying high doses of nitrogen fertilizer until rust is curbed.",
-  "When is the best time to irrigate gram / chana?": "Gram requires 2-3 irrigations only. The most critical stages are: (1) Pre-flowering stage (at 40-45 days after sowing), and (2) Pod development stage. Avoid irrigating during active flowering as it causes flower drop.",
-  "How to apply for PM-KISAN subsidy?": "Under PM-KISAN, eligible farmers receive ₹6,000 annually in 3 equal installments of ₹2,000. You need your Aadhaar card, land records (Khasra/Khatauni), and active bank account linked to Aadhaar. You can apply on pmkisan.gov.in or through your nearest CSC center.",
-  "Which fertilizer is best for tomato flowering?": "During tomato flowering, reduce excess nitrogen and apply 19:19:19 NPK foliar spray @ 5g/L. Also spray Calcium Nitrate @ 2g/L + Boron 20% @ 1g/L to prevent blossom end rot and promote heavy fruit setting."
-};
+const sampleQueries = [
+  "Which crop is suitable for black soil?",
+  "How to grow tomatoes?",
+  "What causes yellow leaves?",
+  "How to control pests in cotton?",
+  "Which fertilizer is needed for rice?",
+  "How much water does maize need?"
+];
 
 export default function AIAssistantModal({ isOpen, onClose }) {
   const [messages, setMessages] = useState(initialMessages);
   const [inputVal, setInputVal] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
-  const sendMessage = (textToSend) => {
+  const sendMessage = async (textToSend) => {
     const text = textToSend || inputVal.trim();
-    if (!text) return;
+    if (!text || isTyping) return;
 
     const userMsg = {
       sender: 'user',
@@ -33,24 +36,33 @@ export default function AIAssistantModal({ isOpen, onClose }) {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInputVal('');
     setIsTyping(true);
 
-    setTimeout(() => {
-      let botReply = sampleQA[text] ||
-        `Thank you for asking! For "${text}", our agronomy engine recommends inspecting soil moisture first. Also consider consulting your local Krishi Vigyan Kendra (KVK) or calling the toll-free Kisan Helpline 1800-180-1551 for personalized guidance.`;
-
+    try {
+      const botResponse = await sendChatMessage(text, updatedMessages);
       setMessages((prev) => [
         ...prev,
         {
           sender: 'bot',
-          text: botReply,
+          text: botResponse.text,
+          time: botResponse.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: 'bot',
+          text: 'An error occurred while generating advice. Please retry or contact the Kisan Helpline 1800-180-1551.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
+    } finally {
       setIsTyping(false);
-    }, 700);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -74,7 +86,7 @@ export default function AIAssistantModal({ isOpen, onClose }) {
             <span>Popular Farmer Inquiries (Click to Ask)</span>
           </p>
           <div className="flex flex-wrap gap-1.5">
-            {Object.keys(sampleQA).map((q) => (
+            {sampleQueries.map((q) => (
               <button
                 key={q}
                 type="button"
@@ -100,23 +112,23 @@ export default function AIAssistantModal({ isOpen, onClose }) {
                 </div>
               )}
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed ${
+                className={`max-w-[80%] rounded-2xl px-4 py-3 text-xs leading-relaxed whitespace-pre-line shadow-xs ${
                   m.sender === 'user'
-                    ? 'bg-emerald-600 text-white rounded-br-none'
-                    : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200/80'
+                    ? 'bg-emerald-600 text-white rounded-tr-none'
+                    : 'bg-slate-50 text-slate-800 border border-slate-200 rounded-tl-none'
                 }`}
               >
-                <p>{m.text}</p>
-                <span
-                  className={`text-[10px] block mt-1 ${
-                    m.sender === 'user' ? 'text-emerald-200 text-right' : 'text-slate-400'
+                <div className="font-sans">{m.text}</div>
+                <div
+                  className={`text-[9px] mt-1 text-right ${
+                    m.sender === 'user' ? 'text-emerald-100' : 'text-slate-400'
                   }`}
                 >
                   {m.time}
-                </span>
+                </div>
               </div>
               {m.sender === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 text-xs">
+                <div className="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center shrink-0 text-xs shadow-sm">
                   <User className="w-4 h-4" />
                 </div>
               )}
@@ -124,35 +136,36 @@ export default function AIAssistantModal({ isOpen, onClose }) {
           ))}
 
           {isTyping && (
-            <div className="flex gap-2.5 items-center text-xs text-slate-500 italic">
-              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                <Bot className="w-4 h-4 animate-spin" />
+            <div className="flex gap-2.5 items-center">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-xs shadow-sm">
+                <Bot className="w-4 h-4" />
               </div>
-              <div className="bg-slate-100 px-3 py-2 rounded-2xl border border-slate-200 flex gap-1 items-center">
-                <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce"></span>
-                <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl rounded-tl-none px-4 py-2.5 text-xs text-slate-500 flex items-center gap-1.5 shadow-xs">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.2s]" />
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce [animation-delay:0.4s]" />
+                <span className="text-[11px] ml-1">KrishiMitra AI is thinking...</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* Input Bar */}
-        <div className="pt-3 border-t border-slate-100 flex items-center gap-2">
+        {/* Input box */}
+        <div className="pt-3 border-t border-slate-100 flex gap-2">
           <input
             type="text"
-            placeholder="Type your crop or farming question here (e.g. spray schedule)..."
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 text-xs sm:text-sm px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            placeholder="Type your farming question (e.g. fertilizer for rice)..."
+            className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
           />
           <Button
             variant="primary"
-            size="md"
+            size="sm"
             icon={Send}
             onClick={() => sendMessage()}
-            disabled={!inputVal.trim()}
+            disabled={!inputVal.trim() || isTyping}
           >
             Send
           </Button>
@@ -161,4 +174,3 @@ export default function AIAssistantModal({ isOpen, onClose }) {
     </Modal>
   );
 }
-

@@ -6,7 +6,7 @@
 // 4. Farming Reminders (Irrigation, Fertilizer, Inspection, Pest Monitoring)
 
 const DB_NAME = 'KrishiMitra_FarmerDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 export const STORES = {
   FARMER_PROFILE: 'farmerProfile',
@@ -15,6 +15,7 @@ export const STORES = {
   FARMING_REMINDERS: 'farmingReminders',
   FARM_LOCATIONS: 'farmLocations',
   DISEASE_SCANS: 'diseaseScans',
+  CHAT_SESSIONS: 'chatSessions',
 };
 
 // ==========================================
@@ -423,6 +424,13 @@ export function openFarmerDB() {
         scanStore.createIndex('diseaseName', 'diseaseName', { unique: false });
         scanStore.createIndex('scannedAt', 'scannedAt', { unique: false });
         scanStore.createIndex('farmLocation', 'farmLocation', { unique: false });
+      }
+
+      // 7. Chatbot Sessions Store (Conversation Memory)
+      if (!db.objectStoreNames.contains(STORES.CHAT_SESSIONS)) {
+        const chatStore = db.createObjectStore(STORES.CHAT_SESSIONS, { keyPath: 'id' });
+        chatStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+        chatStore.createIndex('language', 'language', { unique: false });
       }
     };
 
@@ -1076,6 +1084,96 @@ export async function deleteDiseaseScanFromDB(id) {
     request.onerror = (e) => reject(e.target.error);
   });
 }
+
+// ==========================================
+// 8. Chatbot Sessions Repository (Memory & History)
+// ==========================================
+
+export async function getAllChatSessionsFromDB() {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve) => {
+    if (!db.objectStoreNames.contains(STORES.CHAT_SESSIONS)) {
+      resolve([]);
+      return;
+    }
+    const tx = db.transaction(STORES.CHAT_SESSIONS, 'readonly');
+    const store = tx.objectStore(STORES.CHAT_SESSIONS);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const results = request.result || [];
+      results.sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+      resolve(results);
+    };
+
+    request.onerror = () => resolve([]);
+  });
+}
+
+export async function getChatSessionByIdFromDB(id) {
+  const db = await openFarmerDB();
+  return new Promise((resolve) => {
+    if (!db.objectStoreNames.contains(STORES.CHAT_SESSIONS)) {
+      resolve(null);
+      return;
+    }
+    const tx = db.transaction(STORES.CHAT_SESSIONS, 'readonly');
+    const store = tx.objectStore(STORES.CHAT_SESSIONS);
+    const request = store.get(id);
+
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => resolve(null);
+  });
+}
+
+export async function saveChatSessionToDB(session) {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.CHAT_SESSIONS, 'readwrite');
+    const store = tx.objectStore(STORES.CHAT_SESSIONS);
+
+    const record = {
+      ...session,
+      id: session.id || `CHAT-${Date.now()}`,
+      createdAt: session.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const request = store.put(record);
+
+    request.onsuccess = () => resolve(record);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function deleteChatSessionFromDB(id) {
+  const db = await openFarmerDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.CHAT_SESSIONS, 'readwrite');
+    const store = tx.objectStore(STORES.CHAT_SESSIONS);
+    const request = store.delete(id);
+
+    request.onsuccess = () => resolve(true);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function clearAllChatSessionsFromDB() {
+  const db = await openFarmerDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.CHAT_SESSIONS, 'readwrite');
+    const store = tx.objectStore(STORES.CHAT_SESSIONS);
+    const request = store.clear();
+
+    request.onsuccess = () => resolve(true);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
 
 
 

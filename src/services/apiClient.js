@@ -2,7 +2,7 @@
 // Connects the React Frontend with the AgriSmart AI & Member 3 FastAPI Backend (http://localhost:8000)
 // Gracefully falls back to local IndexedDB & offline agronomy algorithms if the backend server is offline.
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || 'http://localhost:8000';
 
 /**
  * Check if the unified FastAPI backend server is reachable and healthy
