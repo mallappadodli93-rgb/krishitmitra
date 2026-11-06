@@ -14,6 +14,7 @@ import SoilInfoModal from './components/features/SoilInfoModal';
 import FarmerProfileModal from './components/auth/FarmerProfileModal';
 import OfflineBanner from './components/offline/OfflineBanner';
 import OfflineGuideModal from './components/offline/OfflineGuideModal';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
@@ -215,14 +216,14 @@ export default function App() {
   // Render Dedicated Plant Disease Detection Page View
   if (currentView === 'disease-detection') {
     return (
-      <>
+      <ErrorBoundary fallbackTitle="AI Crop Doctor & Disease Detection">
         <OfflineBanner />
         <DiseaseDetectionPage
           onNavigateHome={() => handleNavigate('home')}
           onNavigateDashboard={() => handleNavigate('dashboard')}
         />
         <OfflineGuideModal />
-      </>
+      </ErrorBoundary>
     );
   }
 

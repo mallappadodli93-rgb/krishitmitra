@@ -344,6 +344,38 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
     startCamera(cameraFacingMode);
   };
 
+  const handleOpenGallery = () => {
+    stopCamera();
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleOpenMobileCameraFallback = () => {
+    stopCamera();
+    if (mobileCaptureInputRef.current) {
+      mobileCaptureInputRef.current.click();
+    }
+  };
+
+  const handleNavHome = () => {
+    stopCamera();
+    if (onNavigateHome) {
+      onNavigateHome();
+    } else {
+      window.location.hash = '#home';
+    }
+  };
+
+  const handleNavDashboard = () => {
+    stopCamera();
+    if (onNavigateDashboard) {
+      onNavigateDashboard();
+    } else {
+      window.location.hash = '#dashboard';
+    }
+  };
+
   // Run Real AI Plant Identification & Disease Detection
   const handleAnalyzePlant = async () => {
     if (!imagePreview && !selectedFile) {
