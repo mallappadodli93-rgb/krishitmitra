@@ -319,3 +319,4 @@ export const TARGET_12_DEMO_SAMPLES = [
     hint: 'Lush green unblemished foliage with zero pathogen symptoms'
   }
 ];
+

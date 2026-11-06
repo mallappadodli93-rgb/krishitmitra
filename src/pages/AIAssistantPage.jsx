@@ -31,7 +31,11 @@ import {
   History,
   Clock,
   Compass,
-  MapPin
+  MapPin,
+  ExternalLink,
+  Key,
+  Cpu,
+  RefreshCw
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -47,6 +51,13 @@ import {
   clearAllChatSessions,
   fetchFarmLocations
 } from '../services/farmerDataService';
+import {
+  getGeminiKeyStatus,
+  getActiveGeminiApiKey,
+  saveUserGeminiApiKey,
+  removeUserGeminiApiKey,
+  testGeminiConnection
+} from '../services/geminiDiseaseService';
 
 export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard }) {
   const { language, changeLanguage, t, languages } = useLanguage();
@@ -55,43 +66,74 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
   const activeUser = getActiveUser();
   const farmerName = activeUser?.name || 'Kisan';
 
-  // 10 Key Practical Suggested Questions (Multilingual)
+  // Gemini API Key & Engine Status State
+  const [geminiStatus, setGeminiStatus] = useState({ configured: false, source: 'none', maskedKey: '' });
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [inputApiKey, setInputApiKey] = useState('');
+  const [isTestingApiKey, setIsTestingApiKey] = useState(false);
+  const [apiKeyFeedback, setApiKeyFeedback] = useState(null);
+
+  const refreshGeminiStatus = () => {
+    const status = getGeminiKeyStatus();
+    setGeminiStatus(status);
+  };
+
+  useEffect(() => {
+    refreshGeminiStatus();
+  }, []);
+
+  // 15 Comprehensive Practical Suggested Questions (Multilingual)
   const SUGGESTED_QUESTIONS = {
     kn: [
+      'ಹಲೋ / ನಮಸ್ಕಾರ',
+      'ಕೃಷಿ ಎಂದರೇನು?',
       'ಕರಿ ಮಣ್ಣಿಗೆ ಯಾವ ಬೆಳೆ ಸೂಕ್ತ?',
-      'ಟೊಮೆಟೊ ಬೆಳೆಯುವುದು ಹೇಗೆ?',
+      'ಗೋಧಿ ಬೆಳೆಯುವುದು ಹೇಗೆ?',
+      'ಭತ್ತ ಬೆಳೆಯುವುದು ಹೇಗೆ?',
       'ಎಲೆಗಳು ಹಳದಿಯಾಗಲು ಕಾರಣವೇನು?',
       'ಹತ್ತಿಯಲ್ಲಿ ಕೀಟ ನಿಯಂತ್ರಣ ಹೇಗೆ?',
-      'ಭತ್ತಕ್ಕೆ ಯಾವ ಗೊಬ್ಬರ ಬೇಕು?',
+      'ಟೊಮೆಟೊ ಬೆಳೆಗೆ ಯಾವ ಗೊಬ್ಬರ ಬೇಕು?',
       'ಮೆಕ್ಕೆಜೋಳಕ್ಕೆ ಎಷ್ಟು ನೀರು ಬೇಕು?',
+      'ಕಡಲೆಕಾಯಿಗೆ ಅತ್ಯುತ್ತಮ ಹಂಗಾಮು ಯಾವುದು?',
       'ಮಣ್ಣಿನ ಫಲವತ್ತತೆ ಹೆಚ್ಚಿಸುವುದು ಹೇಗೆ?',
-      'ಭಾರೀ ಮಳೆ ಬಂದಾಗ ಏನು ಮಾಡಬೇಕು?',
+      'ಸಾವಯವ ಕೃಷಿ ಎಂದರೇನು?',
+      'ದ್ಯುತಿಸಂಶ್ಲೇಷಣೆ ಎಂದರೇನು?',
       'ಗಿಡದ ರೋಗಗಳನ್ನು ಗುರುತಿಸುವುದು ಹೇಗೆ?',
-      'ಬೆಳೆ ಇಳುವರಿ ಹೆಚ್ಚಿಸುವುದು ಹೇಗೆ?'
+      'ಆಧುನಿಕ ಕೃಷಿ ತಂತ್ರಜ್ಞಾನಗಳು ಯಾವುವು?'
     ],
     hi: [
+      'नमस्ते / हैलो',
+      'कृषि क्या है?',
       'काली मिट्टी के लिए कौन सी फसल उपयुक्त है?',
-      'टमाटर की खेती कैसे करें?',
+      'गेहूं की खेती कैसे करें?',
+      'धान की खेती कैसे करें?',
       'पत्तियां पीली पड़ने का क्या कारण है?',
       'कपास में कीट नियंत्रण कैसे करें?',
-      'धान के लिए कौन सा उर्वरक चाहिए?',
+      'टमाटर के लिए कौन सा उर्वरक चाहिए?',
       'मक्के को कितने पानी की आवश्यकता होती है?',
+      'मूंगफली के लिए सबसे अच्छा मौसम कौन सा है?',
       'मिट्टी की उर्वरा शक्ति कैसे बढ़ाएं?',
-      'भारी बारिश के दौरान क्या करें?',
+      'जैविक खेती क्या है?',
+      'प्रकाश संश्लेषण क्या है?',
       'पौधों के रोगों की पहचान कैसे करें?',
-      'फसल की पैदावार कैसे बढ़ाएं?'
+      'आधुनिक कृषि तकनीकें कौन सी हैं?'
     ],
     en: [
+      'Hi',
+      'What is agriculture?',
       'Which crop is suitable for black soil?',
-      'How to grow tomatoes?',
+      'How to grow wheat?',
+      'How to grow rice?',
       'What causes yellow leaves?',
-      'How to control pests in cotton?',
-      'Which fertilizer is needed for rice?',
+      'How to control cotton pests?',
+      'Which fertilizer is suitable for tomato?',
       'How much water does maize need?',
-      'How can I improve soil fertility?',
-      'What should I do during heavy rainfall?',
-      'How can I identify plant disease?',
-      'How do I increase crop production?'
+      'What is the best season for groundnut?',
+      'How to improve soil fertility?',
+      'What is organic farming?',
+      'Explain photosynthesis',
+      'How to identify plant diseases?',
+      'What are the latest agricultural technologies?'
     ]
   };
 
@@ -397,6 +439,10 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
         id: Date.now() + 1,
         sender: 'bot',
         text: botReply.text,
+        sources: botReply.sources || [],
+        searchQueries: botReply.searchQueries || [],
+        isGrounded: botReply.isGrounded || false,
+        source: botReply.source || 'gemini',
         timestamp: botReply.timestamp
       };
 
@@ -423,7 +469,9 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
         {
           id: Date.now() + 1,
           sender: 'bot',
-          text: 'An error occurred while generating agricultural advice. Please retry or contact the Kisan Call Center toll-free at 1800-180-1551.',
+          text: `⚠️ **AI Service Notice:** ${err.message || 'Unable to generate response at this moment.'}\n\nYou can click the retry button below or check your Gemini API key in settings.`,
+          isError: true,
+          failedQuery: query,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);
@@ -561,6 +609,29 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Gemini API Status Badge (Click to configure) */}
+            <button
+              type="button"
+              onClick={() => {
+                const { key } = getActiveGeminiApiKey();
+                setInputApiKey(key || '');
+                setApiKeyFeedback(null);
+                setShowApiKeyModal(true);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                geminiStatus.configured
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100 animate-pulse'
+              }`}
+              title="Click to Configure Google Gemini API Key"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {geminiStatus.configured ? 'Gemini AI Online' : 'Set Gemini Key'}
+              </span>
+              <span className={`w-2 h-2 rounded-full ${geminiStatus.configured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            </button>
+
             {/* New Chat Button */}
             <button
               type="button"
@@ -795,6 +866,46 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
                       {msg.text}
                     </div>
 
+                    {/* Google Search Grounding Citations */}
+                    {isBot && msg.sources && msg.sources.length > 0 && (
+                      <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-800">
+                          <Compass className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>Grounded with Google Search Sources:</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {msg.sources.map((src, sIdx) => (
+                            <a
+                              key={sIdx}
+                              href={src.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-lg text-[10px] text-slate-700 hover:text-emerald-900 transition-colors shadow-xs"
+                              title={src.title}
+                            >
+                              <Globe className="w-3 h-3 text-slate-400" />
+                              <span className="max-w-[140px] truncate font-medium">{src.title}</span>
+                              <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Retry Button on Error */}
+                    {isBot && msg.isError && msg.failedQuery && (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSendMessage(msg.failedQuery)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Retry Question
+                        </button>
+                      </div>
+                    )}
+
                     {/* Message Footer: Timestamp & Action Controls */}
                     <div className={`flex items-center justify-between pt-2 border-t text-[10px] ${
                       isBot ? 'border-slate-200/60 text-slate-400' : 'border-white/20 text-emerald-100'
@@ -982,6 +1093,132 @@ export default function AIAssistantPage({ onNavigateHome, onNavigateDashboard })
 
         </main>
       </div>
+
+      {/* GEMINI API KEY CONFIGURATION MODAL */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Google Gemini API Configuration</h3>
+                  <p className="text-xs text-slate-500">Enables dynamic responses & Google Search Grounding</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Gemini API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={inputApiKey}
+                  onChange={(e) => setInputApiKey(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+
+              {/* Status Display */}
+              <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 space-y-1">
+                <div>Active Key Status: <strong>{geminiStatus.maskedKey}</strong></div>
+                <div>Key Source: <strong className="capitalize">{geminiStatus.source}</strong></div>
+              </div>
+
+              {/* Feedback messages */}
+              {apiKeyFeedback && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  apiKeyFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                  apiKeyFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+                  'bg-blue-50 text-blue-800 border border-blue-200'
+                }`}>
+                  {apiKeyFeedback.type === 'success' ? <Check className="w-4 h-4 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+                  <span>{apiKeyFeedback.message}</span>
+                </div>
+              )}
+
+              {/* Security / Prototype Notice */}
+              <div className="p-3 bg-amber-50 rounded-xl text-[11px] text-amber-800 leading-relaxed border border-amber-200/60">
+                <strong>Development Prototype Notice: </strong>
+                Your API key is stored only in your local browser (<code className="font-mono">localStorage</code>) 
+                or read from <code className="font-mono">VITE_GEMINI_API_KEY</code> in <code className="font-mono">.env</code>. 
+                Get a free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="underline font-bold text-amber-900">Google AI Studio</a>.
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsTestingApiKey(true);
+                  setApiKeyFeedback(null);
+                  const res = await testGeminiConnection(inputApiKey.trim());
+                  setIsTestingApiKey(false);
+                  if (res.success) {
+                    setApiKeyFeedback({ type: 'success', message: res.message });
+                    saveUserGeminiApiKey(inputApiKey.trim());
+                    refreshGeminiStatus();
+                  } else {
+                    setApiKeyFeedback({ type: 'error', message: res.message });
+                  }
+                }}
+                disabled={isTestingApiKey || !inputApiKey.trim()}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isTestingApiKey ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Test Connection
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (inputApiKey.trim()) {
+                      saveUserGeminiApiKey(inputApiKey.trim());
+                    } else {
+                      removeUserGeminiApiKey();
+                    }
+                    refreshGeminiStatus();
+                    setShowApiKeyModal(false);
+                  }}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition-all"
+                >
+                  Save & Connect
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
