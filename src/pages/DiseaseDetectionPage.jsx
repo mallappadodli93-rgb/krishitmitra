@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Upload,
   ScanLine,
@@ -30,7 +30,14 @@ import {
   ExternalLink,
   BookOpen,
   HelpCircle,
-  Eye
+  Eye,
+  Key,
+  ShieldCheck,
+  Download,
+  Filter,
+  Layers,
+  Cpu,
+  ChevronRight
 } from 'lucide-react';
 import Button from '../components/common/Button';
 import Badge from '../components/common/Badge';
@@ -38,12 +45,20 @@ import Card from '../components/common/Card';
 import { useLanguage } from '../context/LanguageContext';
 import { useOffline } from '../context/OfflineContext';
 import {
-  SUPPORTED_CROPS,
-  AGRONOMIC_DISEASE_KNOWLEDGE,
+  ALL_SUPPORTED_CROPS,
+  CROP_CATEGORIES,
+  COMPREHENSIVE_DISEASE_LIBRARY,
+  findCropMetadata,
+  lookupDiseaseRecord,
+  filterDiseaseLibrary,
   detectCropDiseaseWithAI,
   checkAIServiceHealth,
-  getAgronomicGuidesForCrop,
-  getAllAgronomicGuides
+  getActiveGeminiApiKey,
+  getGeminiKeyStatus,
+  saveUserGeminiApiKey,
+  removeUserGeminiApiKey,
+  testGeminiConnection,
+  compressAndPrepareImage
 } from '../services/cropDiseaseAIService';
 import {
   fetchDiseaseScans,
@@ -52,7 +67,7 @@ import {
   fetchFarmLocations
 } from '../services/farmerDataService';
 
-// Sample demo leaves for zero-camera instant evaluation
+// 12 High-Quality Demo Samples Covering Diverse Crops (Zero-Camera Instant Evaluation)
 const DEMO_LEAF_SAMPLES = [
   {
     id: 'demo-tomato-early-blight',
@@ -60,15 +75,8 @@ const DEMO_LEAF_SAMPLES = [
     cropName: 'Tomato',
     diseaseName: 'Tomato Early Blight (Alternaria solani)',
     sampleImage: 'https://images.unsplash.com/photo-1592841200221-a6898f307baa?w=800&auto=format&fit=crop&q=80',
-    location: 'Raichur Vegetable Plot 1'
-  },
-  {
-    id: 'demo-wheat-rust',
-    cropId: 'wheat',
-    cropName: 'Wheat',
-    diseaseName: 'Wheat Stripe / Yellow Rust (Puccinia striiformis)',
-    sampleImage: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=800&auto=format&fit=crop&q=80',
-    location: 'Belagavi Rabi Farm'
+    location: 'Raichur Vegetable Plot 1',
+    hint: 'Tomato foliage with concentric ring target spots'
   },
   {
     id: 'demo-rice-blast',
@@ -76,7 +84,26 @@ const DEMO_LEAF_SAMPLES = [
     cropName: 'Rice / Paddy',
     diseaseName: 'Rice Blast (Magnaporthe oryzae)',
     sampleImage: 'https://images.unsplash.com/photo-1536657464919-892534f60d6e?w=800&auto=format&fit=crop&q=80',
-    location: 'Koppal Canal Field'
+    location: 'Koppal Canal Field',
+    hint: 'Paddy leaf with spindle-shaped necrotic lesions'
+  },
+  {
+    id: 'demo-wheat-rust',
+    cropId: 'wheat',
+    cropName: 'Wheat',
+    diseaseName: 'Wheat Stripe / Yellow Rust (Puccinia striiformis)',
+    sampleImage: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=800&auto=format&fit=crop&q=80',
+    location: 'Belagavi Rabi Farm',
+    hint: 'Linear parallel yellow rust pustules on wheat'
+  },
+  {
+    id: 'demo-maize-blight',
+    cropId: 'maize',
+    cropName: 'Maize (Corn)',
+    diseaseName: 'Maydis Leaf Blight (Bipolaris maydis)',
+    sampleImage: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=800&auto=format&fit=crop&q=80',
+    location: 'Davanagere Corn Field',
+    hint: 'Elongated tan-brown blighted lesions'
   },
   {
     id: 'demo-cotton-curl',
@@ -84,54 +111,135 @@ const DEMO_LEAF_SAMPLES = [
     cropName: 'Cotton',
     diseaseName: 'Cotton Leaf Curl Virus (CLCuV)',
     sampleImage: 'https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=800&auto=format&fit=crop&q=80',
-    location: 'Ballari Black Soil Farm'
+    location: 'Ballari Black Soil Farm',
+    hint: 'Upward leaf curling & vein enations'
+  },
+  {
+    id: 'demo-chilli-anthracnose',
+    cropId: 'chilli',
+    cropName: 'Chilli / Green Pepper',
+    diseaseName: 'Chilli Anthracnose / Fruit Rot',
+    sampleImage: 'https://images.unsplash.com/photo-1588252303782-cb80119abd6d?w=800&auto=format&fit=crop&q=80',
+    location: 'Byadagi Chilli Plot',
+    hint: 'Sunken necrotic spots on chilli pods & twigs'
+  },
+  {
+    id: 'demo-potato-blight',
+    cropId: 'potato',
+    cropName: 'Potato',
+    diseaseName: 'Potato Late Blight (Phytophthora infestans)',
+    sampleImage: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=800&auto=format&fit=crop&q=80',
+    location: 'Hassan Potato Farm',
+    hint: 'Water-soaked purplish lesions on potato canopy'
+  },
+  {
+    id: 'demo-groundnut-tikka',
+    cropId: 'groundnut',
+    cropName: 'Groundnut (Peanut)',
+    diseaseName: 'Tikka Leaf Spot (Cercospora)',
+    sampleImage: 'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=800&auto=format&fit=crop&q=80',
+    location: 'Tumakuru Groundnut Plot',
+    hint: 'Circular leaf spots with chlorotic yellow rings'
+  },
+  {
+    id: 'demo-mango-anthracnose',
+    cropId: 'mango',
+    cropName: 'Mango',
+    diseaseName: 'Mango Anthracnose (Colletotrichum)',
+    sampleImage: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=800&auto=format&fit=crop&q=80',
+    location: 'Srinivaspur Mango Orchard',
+    hint: 'Tear-stain dark lesions on mango foliage'
+  },
+  {
+    id: 'demo-banana-sigatoka',
+    cropId: 'banana',
+    cropName: 'Banana',
+    diseaseName: 'Sigatoka Leaf Spot',
+    sampleImage: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?w=800&auto=format&fit=crop&q=80',
+    location: 'Nanjangud Banana Plantation',
+    hint: 'Elongated reddish-brown necrotic streaks'
+  },
+  {
+    id: 'demo-grapes-downy',
+    cropId: 'grapes',
+    cropName: 'Grapes',
+    diseaseName: 'Grapevine Downy Mildew',
+    sampleImage: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=800&auto=format&fit=crop&q=80',
+    location: 'Vijayapura Vineyard',
+    hint: 'Yellow translucent oil spots with downy growth'
+  },
+  {
+    id: 'demo-healthy-garden',
+    cropId: 'garden',
+    cropName: 'Garden / House Plants',
+    diseaseName: 'Healthy Foliage (No Disease)',
+    sampleImage: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&auto=format&fit=crop&q=80',
+    location: 'Home Garden / Nursery',
+    hint: 'Lush green unblemished foliage (Healthy)'
   }
 ];
 
 export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboard }) {
   const { t, language, changeLanguage, languages } = useLanguage();
-  const { isOffline, openOfflineGuide } = useOffline();
+  const { isOffline } = useOffline();
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
 
-  // Form Metadata States
-  const [selectedCrop, setSelectedCrop] = useState('tomato');
+  // Gemini API Key & Engine Status
+  const [geminiStatus, setGeminiStatus] = useState({ configured: false, source: 'none', maskedKey: '' });
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [inputApiKey, setInputApiKey] = useState('');
+  const [isTestingApiKey, setIsTestingApiKey] = useState(false);
+  const [apiKeyFeedback, setApiKeyFeedback] = useState(null);
+
+  // Crop & Taxonomy States
+  // Default is 'auto' (Auto-Detect Plant) - NOT tomato!
+  const [selectedCrop, setSelectedCrop] = useState('auto');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [cropSearch, setCropSearch] = useState('');
+  const [isCropDropdownOpen, setIsCropDropdownOpen] = useState(false);
+
+  // Farm metadata
   const [farmLocation, setFarmLocation] = useState('Raichur Farm - Plot 1');
   const [scanDateTime, setScanDateTime] = useState(() => {
     const now = new Date();
-    // format as YYYY-MM-DDTHH:mm for datetime-local input
     const pad = (n) => String(n).padStart(2, '0');
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
   });
   const [savedFarmPlots, setSavedFarmPlots] = useState([]);
 
-  // Selected image state
-  const [selectedFile, setSelectedFile] = useState(null); // File or Blob or dataURL
+  // Image capture & preview
+  const [selectedFile, setSelectedFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageSource, setImageSource] = useState(null); // 'camera' | 'gallery' | 'demo'
   const [fileError, setFileError] = useState('');
 
-  // Scanning and detection states
+  // Scanning & AI status
   const [isScanning, setIsScanning] = useState(false);
-  const [scanStepText, setScanStepText] = useState('');
+  const [scanStepIndex, setScanStepIndex] = useState(0);
   const [detectionResult, setDetectionResult] = useState(null);
   const [aiErrorState, setAiErrorState] = useState(null);
-  const [aiServerStatus, setAiServerStatus] = useState({ checked: false, isOnline: false });
 
   // Camera states
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isCameraLoading, setIsCameraLoading] = useState(false);
-  const [cameraFacingMode, setCameraFacingMode] = useState('environment'); // rear camera default
+  const [cameraFacingMode, setCameraFacingMode] = useState('environment');
   const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [cameraError, setCameraError] = useState('');
 
   // IndexedDB Scan History
   const [scanHistory, setScanHistory] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [activeHistoryItem, setActiveHistoryItem] = useState(null);
 
-  // Reference Encyclopedia Modal / Tab
-  const [showEncyclopedia, setShowEncyclopedia] = useState(false);
-  const [encyclopediaSearch, setEncyclopediaSearch] = useState('');
+  // Disease Knowledge Guide Modal
+  const [showKnowledgeGuide, setShowKnowledgeGuide] = useState(false);
+  const [guideCategoryFilter, setGuideCategoryFilter] = useState('all');
+  const [guideSearchQuery, setGuideSearchQuery] = useState('');
+
+  // Active treatment tab
+  const [activeTreatmentTab, setActiveTreatmentTab] = useState('organic'); // 'organic' | 'chemical'
 
   // DOM Refs
   const fileInputRef = useRef(null);
@@ -139,16 +247,16 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Load saved farm locations and past scan history from IndexedDB on mount
+  // Load initial settings, API status, farm plots & IndexedDB history
   useEffect(() => {
+    refreshGeminiStatus();
     loadSavedFarmLocations();
     loadScanHistory();
-    verifyAiHealth();
   }, []);
 
-  const verifyAiHealth = async () => {
-    const health = await checkAIServiceHealth();
-    setAiServerStatus({ checked: true, isOnline: health.isOnline, text: health.statusText });
+  const refreshGeminiStatus = () => {
+    const status = getGeminiKeyStatus();
+    setGeminiStatus(status);
   };
 
   const loadSavedFarmLocations = async () => {
@@ -156,7 +264,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
       const locations = await fetchFarmLocations();
       if (locations && locations.length > 0) {
         setSavedFarmPlots(locations);
-        const primary = locations.find(loc => loc.isPrimary) || locations[0];
+        const primary = locations.find((l) => l.isPrimary) || locations[0];
         if (primary && primary.name) {
           setFarmLocation(`${primary.name} (${primary.district || 'Main Plot'})`);
         }
@@ -172,7 +280,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
       const scans = await fetchDiseaseScans();
       setScanHistory(scans || []);
     } catch (e) {
-      console.error('Failed to load past scans:', e);
+      console.error('Failed to load scan history:', e);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -185,7 +293,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
         try {
           track.stop();
         } catch (e) {
-          console.error('Error stopping track:', e);
+          console.error('Error stopping camera track:', e);
         }
       });
       streamRef.current = null;
@@ -198,9 +306,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
   };
 
   useEffect(() => {
-    return () => {
-      stopCamera();
-    };
+    return () => stopCamera();
   }, []);
 
   // Start live mobile camera (prefers rear 'environment' camera)
@@ -213,7 +319,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
     setAiErrorState(null);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError('Live camera access is not supported by your browser. Use "Take Quick Photo" or "Upload from Gallery".');
+      setCameraError('Live camera access is not supported by your browser. Please use "Upload from Gallery" or "Take Quick Photo".');
       setIsCameraLoading(false);
       return;
     }
@@ -235,7 +341,7 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((err) => {
-            console.error('Error playing camera feed:', err);
+            console.error('Error playing camera stream:', err);
           });
         };
       }
@@ -249,104 +355,73 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
           const videoInputs = devices.filter((d) => d.kind === 'videoinput');
           setHasMultipleCameras(videoInputs.length > 1);
         } catch (e) {
-          setHasMultipleCameras(true);
+          // ignore
         }
       }
     } catch (err) {
-      console.error('Camera access error:', err);
+      console.warn('Camera getUserMedia error:', err);
       setIsCameraLoading(false);
-
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraError('Camera permission was denied. Please grant permission in your browser address bar or use gallery upload.');
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        setCameraError('No camera hardware was found on this device. Please upload a photo from your gallery.');
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        setCameraError('Camera is currently in use by another application. Please close other camera apps and retry.');
-      } else {
-        setCameraError('Could not open camera stream. Please use mobile camera fallback or gallery upload.');
-      }
+      setIsCameraActive(false);
+      setCameraError('Camera access was denied or is unavailable. You can upload an image from your gallery instead.');
     }
   };
 
-  const handleSwitchCamera = () => {
+  const switchCameraFacing = () => {
     const nextMode = cameraFacingMode === 'environment' ? 'user' : 'environment';
     startCamera(nextMode);
   };
 
-  // Capture still photograph from live camera
-  const handleCapturePhoto = () => {
+  // Capture frame from active camera stream
+  const capturePhotoFromCamera = () => {
     if (!videoRef.current) return;
-    const video = videoRef.current;
+    try {
+      const video = videoRef.current;
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Create high-res base64 dataURL
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-
-    setImagePreview(dataUrl);
-    setSelectedFile(dataUrl);
-    setImageSource('camera');
-    setDetectionResult(null);
-    setAiErrorState(null);
-    setFileError('');
-
-    // Stop camera stream after capture
-    stopCamera();
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      setImagePreview(dataUrl);
+      setSelectedFile(dataUrl);
+      setImageSource('camera');
+      setFileError('');
+      setDetectionResult(null);
+      setAiErrorState(null);
+      stopCamera();
+    } catch (err) {
+      setCameraError('Failed to capture snapshot from camera stream: ' + err.message);
+    }
   };
 
-  // File upload processing
-  const processFile = (file, source = 'gallery') => {
-    setFileError('');
-    setDetectionResult(null);
-    setAiErrorState(null);
-    stopCamera();
-
+  // File Upload Handlers
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
     if (!file) return;
 
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-    const validExtensions = /\.(jpe?g|png)$/i;
-
-    if (!validTypes.includes(file.type) && !validExtensions.test(file.name)) {
-      setFileError('Invalid file format. Please upload a crop leaf image in JPG, JPEG, or PNG format.');
+    if (!file.type.startsWith('image/')) {
+      setFileError('Please select a valid image file (JPG, PNG, WebP).');
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setFileError('File size is too large. Please select an image under 10MB.');
+    if (file.size > 25 * 1024 * 1024) {
+      setFileError('Image size exceeds 25 MB. Please select a smaller photo.');
       return;
     }
 
+    setFileError('');
     setSelectedFile(file);
-    setImageSource(source);
+    setImageSource('gallery');
+    setDetectionResult(null);
+    setAiErrorState(null);
 
-    // Read as Base64 so it can be previewed and stored directly in IndexedDB
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result);
+    reader.onload = (event) => {
+      setImagePreview(event.target.result);
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleFileInputChange = (e, source = 'gallery') => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processFile(file, source);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      processFile(file, 'gallery');
-    }
+    stopCamera();
   };
 
   const handleSelectDemoSample = (demo) => {
@@ -378,97 +453,131 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
     startCamera(cameraFacingMode);
   };
 
-  const handleOpenGallery = () => {
-    stopCamera();
-    if (fileInputRef.current) fileInputRef.current.click();
-  };
-
-  const handleOpenMobileCameraFallback = () => {
-    stopCamera();
-    if (mobileCaptureInputRef.current) mobileCaptureInputRef.current.click();
-  };
-
-  // Primary "Detect Disease" Button Click
-  const handleDetectDisease = async () => {
-    if (!imagePreview) {
-      setFileError('Please take a camera photo, upload an image from gallery, or select a demo leaf first.');
+  // Run Real AI Plant Identification & Disease Detection
+  const handleAnalyzePlant = async () => {
+    if (!imagePreview && !selectedFile) {
+      setFileError('Please take a camera photograph, upload an image from your gallery, or choose a demo sample first.');
       return;
     }
 
     setIsScanning(true);
     setDetectionResult(null);
     setAiErrorState(null);
-    setScanStepText('Analyzing leaf contours, venation, and lesion patterns...');
+    setScanStepIndex(0);
+
+    // Multi-step animated progress indicators
+    const stepInterval = setInterval(() => {
+      setScanStepIndex((prev) => (prev < 3 ? prev + 1 : prev));
+    }, 600);
 
     try {
-      setTimeout(() => {
-        setScanStepText('Querying AgriSmart AI MobileNetV2 vision model...');
-      }, 500);
-
-      const aiResponse = await detectCropDiseaseWithAI({
-        imageFile: selectedFile || imagePreview,
+      const response = await detectCropDiseaseWithAI({
+        image: selectedFile || imagePreview,
         cropType: selectedCrop,
-        location: farmLocation,
-        scanDate: scanDateTime
+        farmLocation,
+        language
       });
 
+      clearInterval(stepInterval);
       setIsScanning(false);
 
-      if (aiResponse.status === 'success') {
+      if (response.status === 'success') {
         const fullResult = {
-          ...aiResponse,
-          cropId: selectedCrop,
-          farmLocation: farmLocation,
+          ...response,
+          id: `scan-${Date.now()}`,
+          selectedCropHint: selectedCrop,
+          farmLocation,
           scannedAt: scanDateTime,
           savedAt: new Date().toISOString(),
-          image: imagePreview
+          image: response.imagePreview || imagePreview
         };
 
         setDetectionResult(fullResult);
 
-        // Save scan record and image into IndexedDB
+        // Save scan record into IndexedDB
         try {
           await saveDiseaseScan({
-            id: `scan-${Date.now()}`,
+            id: fullResult.id,
+            plantName: fullResult.plantName,
             cropName: fullResult.cropName,
             cropId: selectedCrop,
-            diseaseName: fullResult.diseaseName,
+            scientificName: fullResult.scientificName,
+            healthStatus: fullResult.healthStatus,
             isHealthy: fullResult.isHealthy,
+            diseaseName: fullResult.diseaseName,
+            diseaseCategory: fullResult.diseaseCategory,
             confidence: fullResult.confidence,
             confidencePercentage: fullResult.confidencePercentage,
-            farmLocation: farmLocation,
+            uncertaintyNote: fullResult.uncertaintyNote,
+            farmLocation,
             scannedAt: scanDateTime,
-            image: imagePreview,
-            symptoms: fullResult.symptoms,
+            image: fullResult.image,
+            visibleSymptoms: fullResult.visibleSymptoms,
             possibleCauses: fullResult.possibleCauses,
             recommendedTreatment: fullResult.recommendedTreatment,
             preventionMethods: fullResult.preventionMethods,
-            whenToSeekExpertAdvice: fullResult.whenToSeekExpertAdvice
+            whenToSeekExpertAdvice: fullResult.whenToSeekExpertAdvice,
+            referenceSource: fullResult.referenceSource
           });
-          // Refresh past scan history
           await loadScanHistory();
         } catch (dbErr) {
-          console.warn('Failed to save scan record to IndexedDB:', dbErr);
+          console.warn('Could not save scan to IndexedDB:', dbErr);
         }
-
       } else {
-        // Truth-in-AI: Explicitly report AI service status (offline / rejected / uncertain)
-        setAiErrorState(aiResponse);
+        // Transparent reporting of Gemini state (disconnected, quota, non-plant, etc.)
+        setAiErrorState(response);
       }
     } catch (err) {
+      clearInterval(stepInterval);
       setIsScanning(false);
       setAiErrorState({
-        isAiOnline: false,
         status: 'error',
-        message: err.message || 'Error occurred while contacting AI classification service.'
+        isAiOnline: false,
+        message: err.message || 'An unexpected error occurred while analyzing the plant image.'
       });
     }
   };
 
-  // Delete a past scan from IndexedDB
+  // API Key Modal Handlers
+  const handleOpenApiKeyModal = () => {
+    const { key } = getActiveGeminiApiKey();
+    setInputApiKey(key || '');
+    setApiKeyFeedback(null);
+    setShowApiKeyModal(true);
+  };
+
+  const handleSaveApiKey = () => {
+    if (!inputApiKey.trim()) {
+      removeUserGeminiApiKey();
+      refreshGeminiStatus();
+      setApiKeyFeedback({ type: 'info', message: 'API key cleared. System is in offline encyclopedia mode.' });
+      return;
+    }
+
+    saveUserGeminiApiKey(inputApiKey);
+    refreshGeminiStatus();
+    setApiKeyFeedback({ type: 'success', message: 'API key saved securely in browser localStorage.' });
+  };
+
+  const handleTestApiKey = async () => {
+    setIsTestingApiKey(true);
+    setApiKeyFeedback(null);
+    const testResult = await testGeminiConnection(inputApiKey.trim());
+    setIsTestingApiKey(false);
+
+    if (testResult.success) {
+      setApiKeyFeedback({ type: 'success', message: testResult.message });
+      saveUserGeminiApiKey(inputApiKey.trim());
+      refreshGeminiStatus();
+    } else {
+      setApiKeyFeedback({ type: 'error', message: testResult.message });
+    }
+  };
+
+  // Delete scan from IndexedDB
   const handleDeleteScan = async (id, e) => {
     if (e) e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this disease scan record?')) return;
+    if (!window.confirm('Delete this disease scan record permanently?')) return;
     try {
       await deleteDiseaseScan(id);
       if (activeHistoryItem && activeHistoryItem.id === id) {
@@ -480,1293 +589,1462 @@ export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboa
     }
   };
 
-  const handleNavHome = () => {
-    stopCamera();
-    if (onNavigateHome) onNavigateHome();
+  // Export history to CSV
+  const handleExportHistoryCSV = () => {
+    if (!scanHistory || scanHistory.length === 0) {
+      alert('No scans to export.');
+      return;
+    }
+
+    const headers = ['Scan ID', 'Date & Time', 'Crop Name', 'Health Status', 'Disease Name', 'Confidence', 'Farm Location', 'Pathogen Category'];
+    const rows = scanHistory.map((s) => [
+      s.id || '',
+      s.scannedAt || '',
+      `"${(s.cropName || '').replace(/"/g, '""')}"`,
+      s.healthStatus || (s.isHealthy ? 'Healthy' : 'Diseased'),
+      `"${(s.diseaseName || '').replace(/"/g, '""')}"`,
+      s.confidencePercentage || (s.confidence ? `${Math.round(s.confidence * 100)}%` : 'N/A'),
+      `"${(s.farmLocation || '').replace(/"/g, '""')}"`,
+      s.diseaseCategory || 'N/A'
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `krishimitra_disease_scans_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  const handleNavDashboard = () => {
-    stopCamera();
-    if (onNavigateDashboard) onNavigateDashboard();
+  // Download printable report
+  const handleDownloadReport = () => {
+    if (!detectionResult) return;
+    const reportText = `
+========================================================================
+KRISHIMITRA (ಕೃಷಿಮಿತ್ರ) AI PLANT & CROP DISEASE DIAGNOSTIC REPORT
+========================================================================
+Generated on: ${new Date().toLocaleString()}
+Farm Location: ${detectionResult.farmLocation}
+Scan Timestamp: ${detectionResult.scannedAt}
+
+PLANT IDENTIFICATION
+------------------------------------------------------------------------
+Common Plant Name: ${detectionResult.plantName}
+Crop Category:     ${detectionResult.cropName}
+Scientific Name:   ${detectionResult.scientificName}
+
+DIAGNOSIS & PATHOLOGY
+------------------------------------------------------------------------
+Health Status:     ${detectionResult.healthStatus}
+Condition/Disease: ${detectionResult.diseaseName}
+Disease Category:  ${detectionResult.diseaseCategory}
+AI Confidence:     ${detectionResult.confidencePercentage}
+Quality & Notice:  ${detectionResult.uncertaintyNote}
+
+OBSERVED SYMPTOMS
+------------------------------------------------------------------------
+${(detectionResult.visibleSymptoms || []).map((s) => `• ${s}`).join('\n')}
+
+POSSIBLE CAUSES & CONTRIBUTORS
+------------------------------------------------------------------------
+${(detectionResult.possibleCauses || []).map((c) => `• ${c}`).join('\n')}
+
+RECOMMENDED ORGANIC & BIOLOGICAL TREATMENT
+------------------------------------------------------------------------
+${(detectionResult.recommendedTreatment?.organic || []).map((t) => `• ${t}`).join('\n')}
+
+RECOMMENDED CHEMICAL TREATMENT
+------------------------------------------------------------------------
+${(detectionResult.recommendedTreatment?.chemical || []).map((t) => `• ${t}`).join('\n')}
+
+PREVENTIVE MEASURES
+------------------------------------------------------------------------
+${(detectionResult.preventionMethods || []).map((p) => `• ${p}`).join('\n')}
+
+EXPERT ESCALATION CRITERIA
+------------------------------------------------------------------------
+${detectionResult.whenToSeekExpertAdvice}
+
+REFERENCE SOURCE
+------------------------------------------------------------------------
+${detectionResult.referenceSource}
+========================================================================
+Disclaimer: This diagnosis is an AI visual assessment provided by KrishiMitra.
+Always verify serious epidemics with your local Krishi Vigyan Kendra (KVK).
+========================================================================
+    `;
+
+    const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `KrishiMitra_Report_${detectionResult.cropName.replace(/\s+/g, '_')}_${Date.now()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  // Filtered agronomic disease encyclopedia
-  const filteredEncyclopedia = getAllAgronomicGuides().filter((guide) => {
-    if (!encyclopediaSearch.trim()) return true;
-    const query = encyclopediaSearch.toLowerCase();
-    return (
-      guide.cropName.toLowerCase().includes(query) ||
-      guide.diseaseName.toLowerCase().includes(query) ||
-      (guide.symptoms && guide.symptoms.some(s => s.toLowerCase().includes(query)))
+  // Filtered crops for crop selector
+  const filteredCrops = useMemo(() => {
+    return ALL_SUPPORTED_CROPS.filter((crop) => {
+      const matchesCategory = selectedCategory === 'all' || crop.category === selectedCategory;
+      const matchesSearch =
+        !cropSearch.trim() ||
+        crop.name.toLowerCase().includes(cropSearch.toLowerCase()) ||
+        crop.localKn.toLowerCase().includes(cropSearch.toLowerCase()) ||
+        crop.localHi.toLowerCase().includes(cropSearch.toLowerCase()) ||
+        (crop.scientificName && crop.scientificName.toLowerCase().includes(cropSearch.toLowerCase()));
+      return matchesCategory && matchesSearch;
+    });
+  }, [selectedCategory, cropSearch]);
+
+  const selectedCropMeta = useMemo(() => {
+    if (selectedCrop === 'auto') return { name: 'Auto-Detect Plant (Any Crop)', icon: '✨', localKn: 'ಯಾವುದೇ ಸಸ್ಯ (ಸ್ವಯಂ ಪತ್ತೆ)', localHi: 'कोई भी पौधा (ऑटो-डिटेक्ट)' };
+    return findCropMetadata(selectedCrop) || { name: selectedCrop, icon: '🌱' };
+  }, [selectedCrop]);
+
+  // Filtered knowledge guide
+  const filteredGuideList = useMemo(() => {
+    return filterDiseaseLibrary({
+      cropId: guideCategoryFilter,
+      searchQuery: guideSearchQuery
+    });
+  }, [guideCategoryFilter, guideSearchQuery]);
+
+  // Filtered scan history
+  const filteredHistory = useMemo(() => {
+    if (!historySearchQuery.trim()) return scanHistory;
+    const q = historySearchQuery.toLowerCase();
+    return scanHistory.filter((item) =>
+      (item.cropName && item.cropName.toLowerCase().includes(q)) ||
+      (item.diseaseName && item.diseaseName.toLowerCase().includes(q)) ||
+      (item.farmLocation && item.farmLocation.toLowerCase().includes(q))
     );
-  });
+  }, [scanHistory, historySearchQuery]);
+
+  const scanSteps = [
+    'Validating leaf image clarity & color balance...',
+    'Compressing payload & transmitting to Google Gemini Multimodal API...',
+    'Analyzing leaf pathology, lesions, chlorosis & leaf venation...',
+    'Cross-referencing verified ICAR / State Agricultural University extension guides...'
+  ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAF8] text-slate-800 pb-24">
-      {/* Hidden file inputs */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
+      {/* Hidden file input for gallery upload */}
       <input
         ref={fileInputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-        onChange={(e) => handleFileInputChange(e, 'gallery')}
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileChange}
         className="hidden"
       />
+
+      {/* Hidden file input for native mobile camera capture */}
       <input
         ref={mobileCaptureInputRef}
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={(e) => handleFileInputChange(e, 'camera')}
+        onChange={handleFileChange}
         className="hidden"
       />
 
-      {/* Top Navbar */}
-      <div className="bg-white border-b border-emerald-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      {/* TOP NAVBAR */}
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              type="button"
               onClick={handleNavHome}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50 px-3 py-2 rounded-xl border border-slate-200 hover:border-emerald-200 transition"
+              className="p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors"
+              title="Return to Home"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>{t('weatherBackHome')}</span>
+              <ArrowLeft className="w-5 h-5" />
             </button>
-
-            <button
-              type="button"
-              onClick={handleNavDashboard}
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-xl border border-emerald-200 transition"
-            >
-              <span>{t('navDashboard')}</span>
-            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+                <Leaf className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                    KrishiMitra AI Crop Doctor
+                  </h1>
+                  <span className="text-xs bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
+                    Multimodal AI
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 hidden sm:block">
+                  Universal Plant Identification & Crop Pathology Diagnostic System
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
-            {/* AI Backend Health Status Badge */}
-            <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 border border-slate-200 text-slate-700">
-              <span className={`w-2 h-2 rounded-full ${aiServerStatus.isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-              <span>AI Engine: {aiServerStatus.isOnline ? 'Online' : 'IndexedDB Mode'}</span>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Gemini API Status Badge (Click to configure) */}
+            <button
+              onClick={handleOpenApiKeyModal}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                geminiStatus.configured
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                  : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 animate-pulse'
+              }`}
+              title="Click to Configure Google Gemini API Key"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">
+                {geminiStatus.configured ? 'Gemini AI Online' : 'API Key Required'}
+              </span>
+              <span className="md:hidden">
+                {geminiStatus.configured ? 'Gemini' : 'Set Key'}
+              </span>
+              <span className={`w-2 h-2 rounded-full ${geminiStatus.configured ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            </button>
 
-            {/* Language Dropdown */}
+            {/* Disease Knowledge Guide Button */}
+            <button
+              onClick={() => setShowKnowledgeGuide(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Disease Guide</span>
+            </button>
+
+            {/* History Button */}
+            <button
+              onClick={() => setShowHistoryDrawer(true)}
+              className="relative p-2 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-xl transition-colors"
+              title="View Scan History"
+            >
+              <History className="w-5 h-5" />
+              {scanHistory.length > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
+                  {scanHistory.length > 9 ? '9+' : scanHistory.length}
+                </span>
+              )}
+            </button>
+
+            {/* Language Selector */}
             <div className="relative">
               <button
-                type="button"
                 onClick={() => setLangDropdownOpen(!langDropdownOpen)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-800 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
               >
                 <Globe className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="hidden sm:inline">
-                  {languages.find((l) => l.code === language)?.name || 'Language'}
-                </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <span className="uppercase">{language}</span>
+                <ChevronDown className="w-3 h-3" />
               </button>
 
               {langDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95">
-                  <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                    ಆಯ್ಕೆ / Language:
-                  </div>
-                  {languages.map((lang) => (
+                <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-lg border border-slate-100 py-1.5 z-50">
+                  {languages.map((l) => (
                     <button
-                      key={lang.code}
+                      key={l.code}
                       onClick={() => {
-                        changeLanguage(lang.code);
+                        changeLanguage(l.code);
                         setLangDropdownOpen(false);
                       }}
-                      className={`w-full text-left px-3.5 py-2 text-xs font-bold hover:bg-emerald-50 hover:text-emerald-800 transition flex items-center justify-between ${
-                        language === lang.code ? 'bg-emerald-50 text-emerald-700 font-extrabold' : 'text-slate-700'
+                      className={`w-full text-left px-3 py-1.5 text-xs font-medium flex items-center justify-between hover:bg-emerald-50 ${
+                        language === l.code ? 'text-emerald-700 font-bold bg-emerald-50/50' : 'text-slate-700'
                       }`}
                     >
-                      <span>{lang.label}</span>
-                      {language === lang.code && <span className="w-2 h-2 rounded-full bg-emerald-600" />}
+                      <span>{l.nativeName}</span>
+                      {language === l.code && <Check className="w-3.5 h-3.5 text-emerald-600" />}
                     </button>
                   ))}
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </header>
 
-            <button
-              type="button"
-              onClick={() => setShowEncyclopedia(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"
-              title="Open Agronomy Disease Guide"
-            >
-              <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">Disease Guide</span>
-            </button>
+      {/* SUB-HEADER / BANNER */}
+      <div className="bg-gradient-to-r from-emerald-700 via-teal-800 to-emerald-900 text-white py-6 px-4 sm:px-6 lg:px-8 shadow-inner">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 bg-emerald-800/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-medium text-emerald-200 mb-2 border border-emerald-600/40">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+              Universal Agricultural Vision • Supports 50+ Indian Crops & Plants
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              AI Plant Identification & Crop Disease Detection
+            </h2>
+            <p className="text-sm text-emerald-100 max-w-2xl mt-1">
+              Photograph any leaf to detect diseases, nutrient deficiencies, or pests in seconds. 
+              Powered by Google Gemini multimodal AI cross-referenced with verified ICAR university guides.
+            </p>
+          </div>
+
+          {/* Quick Stats Pill */}
+          <div className="flex items-center gap-3 bg-emerald-950/40 backdrop-blur-sm border border-emerald-500/30 rounded-2xl p-3 text-xs">
+            <div className="text-center px-3 border-r border-emerald-700/50">
+              <div className="text-lg font-bold text-white">50+</div>
+              <div className="text-emerald-300">Crops & Plants</div>
+            </div>
+            <div className="text-center px-3 border-r border-emerald-700/50">
+              <div className="text-lg font-bold text-emerald-300">Gemini</div>
+              <div className="text-emerald-300">Vision Model</div>
+            </div>
+            <div className="text-center px-2">
+              <div className="text-lg font-bold text-white">100%</div>
+              <div className="text-emerald-300">Verified Advice</div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
-        
-        {/* Title Header */}
-        <div className="text-center max-w-2xl mx-auto space-y-3">
-          <Badge variant="emerald" icon={ScanLine}>
-            KrishiMitra AI • Vision Disease Detection
-          </Badge>
-
-          <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-            {language === 'kn' ? 'ಎಐ ಬೆಳೆ ರೋಗ ಪತ್ತೆ ಮತ್ತು ಪರಿಹಾರ' : language === 'hi' ? 'एआई फसल रोग पहचान व उपचार' : 'AI Crop Disease Detection'}
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-            {language === 'kn'
-              ? 'ಮೊಬೈಲ್ ಕ್ಯಾಮೆರಾದಿಂದ ಎಲೆಯ ಫೋಟೋ ತೆಗೆಯಿರಿ ಅಥವಾ ಅಪ್‌ಲೋಡ್ ಮಾಡಿ. ಕೃತಕ ಬುದ್ಧಿಮತ್ತೆಯು ರೋಗ, ಲಕ್ಷಣ, ಜೈವಿಕ ಹಾಗೂ ರಾಸಾಯನಿಕ ಪರಿಹಾರಗಳನ್ನು ನೀಡುತ್ತದೆ.'
-              : language === 'hi'
-              ? 'मोबाइल कैमरे से पत्ती की फोटो लें या अपलोड करें। एआई तुरंत रोग पहचान, लक्षण और जैविक व रासायनिक उपचार बताता है।'
-              : 'Capture or upload crop leaf photographs. Real-time vision classification delivers disease identification, confidence scores, symptoms, and ICAR clinical treatment recommendations.'}
-          </p>
-        </div>
-
-        {/* Offline Disclaimer Banner if offline */}
-        {isOffline && (
-          <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-950 shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <span>
-                <strong>Offline Mode Active:</strong> Scans will be archived in local IndexedDB. You can also explore the offline agronomy encyclopedia.
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={openOfflineGuide}
-              className="px-3 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-xl text-xs transition shrink-0"
-            >
-              Browse Saved Remedies
-            </button>
-          </div>
-        )}
-
-        {/* =========================================================================
-            SECTION 1: SCAN METADATA CONFIGURATION (Crop, Farm Location, Date/Time)
-           ========================================================================= */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <Leaf className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                {language === 'kn' ? 'ಹಂತ 1: ಬೆಳೆ, ಜಮೀನಿನ ಸ್ಥಳ ಮತ್ತು ದಿನಾಂಕ ಆಯ್ಕೆಮಾಡಿ' : language === 'hi' ? 'चरण 1: फसल, खेत का स्थान व दिनांक चुनें' : 'Step 1: Farm Location, Crop & Scan Schedule'}
-              </h2>
-            </div>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              Required Details
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            
-            {/* 1. Crop Type Selector */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                {language === 'kn' ? 'ಬೆಳೆ ಪ್ರಕಾರ (Crop Type):' : language === 'hi' ? 'फसल का प्रकार:' : 'Select Crop Type:'}
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedCrop}
-                  onChange={(e) => setSelectedCrop(e.target.value)}
-                  className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none appearance-none"
-                >
-                  {SUPPORTED_CROPS.map((crop) => (
-                    <option key={crop.id} value={crop.id}>
-                      {crop.icon} {crop.name} ({language === 'kn' ? crop.localKn : language === 'hi' ? crop.localHi : crop.name})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
+      {/* GEMINI DISCONNECTED WARNING CALLOUT (if key is missing) */}
+      {!geminiStatus.configured && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-md shadow-amber-500/30">
+                <Key className="w-5 h-5" />
               </div>
-            </div>
-
-            {/* 2. Farm Location */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{language === 'kn' ? 'ಜಮೀನಿನ ಸ್ಥಳ (Farm Location):' : language === 'hi' ? 'खेत का स्थान:' : 'Farm Location:'}</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={farmLocation}
-                  onChange={(e) => setFarmLocation(e.target.value)}
-                  placeholder="e.g. Raichur North Farm - Plot 2"
-                  list="saved-farm-locations-list"
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-                <datalist id="saved-farm-locations-list">
-                  {savedFarmPlots.map((plot) => (
-                    <option key={plot.id} value={`${plot.name} (${plot.district || 'Plot'})`} />
-                  ))}
-                  <option value="Raichur Main Farm - Plot 1" />
-                  <option value="Belagavi North Acre" />
-                  <option value="Koppal Paddy Wetland" />
-                  <option value="Ballari Cotton Field" />
-                </datalist>
-              </div>
-            </div>
-
-            {/* 3. Date & Time of Scanning */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{language === 'kn' ? 'ಸ್ಕ್ಯಾನ್ ದಿನಾಂಕ & ಸಮಯ:' : language === 'hi' ? 'स्कैन की तारीख व समय:' : 'Date & Time of Scanning:'}</span>
-              </label>
-              <input
-                type="datetime-local"
-                value={scanDateTime}
-                onChange={(e) => setScanDateTime(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-            </div>
-
-          </div>
-
-          {/* Quick Crop Selector Chips */}
-          <div className="pt-2 border-t border-slate-100 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-bold text-slate-500">Quick Select:</span>
-            {SUPPORTED_CROPS.slice(0, 7).map((crop) => (
-              <button
-                key={crop.id}
-                type="button"
-                onClick={() => setSelectedCrop(crop.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 ${
-                  selectedCrop === crop.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                <span>{crop.icon}</span>
-                <span>{crop.name.split(' ')[0]}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* =========================================================================
-            SECTION 2: PRIMARY PHOTO ACQUISITION (Live Camera vs Upload)
-           ========================================================================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          
-          {/* Button A: Live Camera */}
-          <button
-            type="button"
-            onClick={() => startCamera('environment')}
-            className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center justify-center text-center gap-3 group relative overflow-hidden shadow-sm active:scale-[0.98] ${
-              isCameraActive
-                ? 'border-emerald-600 bg-emerald-50/90 shadow-md ring-2 ring-emerald-500'
-                : 'border-emerald-200 hover:border-emerald-500 bg-white hover:bg-emerald-50/40'
-            }`}
-          >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-600 to-green-700 text-white flex items-center justify-center shadow-lg shadow-emerald-600/25 group-hover:scale-105 transition-transform">
-              <Camera className="w-8 h-8" />
-            </div>
-            <div>
-              <span className="block text-base sm:text-lg font-black text-slate-900 group-hover:text-emerald-700">
-                {t('cameraOpen')}
-              </span>
-              <span className="block text-xs text-slate-500 mt-0.5">
-                {language === 'kn' ? 'ಹಿಂಭಾಗದ ಮೊಬೈಲ್ ಕ್ಯಾಮೆರಾದಿಂದ ಲೈವ್ ಫೋಟೋ' : language === 'hi' ? 'रियर कैमरे से लाइव फोटो खींचें' : 'Open live mobile camera & snap leaf'}
-              </span>
-            </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
-              <Sparkles className="w-3 h-3 text-emerald-600" />
-              {language === 'kn' ? 'ಶಿಫಾರಸು ಮಾಡಲಾಗಿದೆ' : language === 'hi' ? 'अनुशंसित' : 'Direct Mobile Camera'}
-            </span>
-          </button>
-
-          {/* Button B: Upload from Gallery */}
-          <button
-            type="button"
-            onClick={handleOpenGallery}
-            className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center justify-center text-center gap-3 group shadow-sm active:scale-[0.98] ${
-              imagePreview && imageSource === 'gallery'
-                ? 'border-emerald-600 bg-emerald-50/90 shadow-md ring-2 ring-emerald-500'
-                : 'border-slate-200 hover:border-emerald-400 bg-white hover:bg-emerald-50/30'
-            }`}
-          >
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-emerald-700 border border-slate-300 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
-              <Upload className="w-8 h-8" />
-            </div>
-            <div>
-              <span className="block text-base sm:text-lg font-black text-slate-900 group-hover:text-emerald-700">
-                {t('uploadGallery')}
-              </span>
-              <span className="block text-xs text-slate-500 mt-0.5">
-                {language === 'kn' ? 'ಗ್ಯಾಲರಿಯಿಂದ ಫೋಟೋ ಆಯ್ಕೆ ಮಾಡಿ (JPG, PNG)' : language === 'hi' ? 'गैलरी से फोटो चुनें (JPG, PNG)' : 'Select leaf image from phone or computer'}
-              </span>
-            </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
-              <ImageIcon className="w-3 h-3 text-slate-500" />
-              Gallery & Files
-            </span>
-          </button>
-
-        </div>
-
-        {/* =========================================================================
-            SECTION 3: LIVE CAMERA VIEWFINDER
-           ========================================================================= */}
-        {isCameraActive && (
-          <div className="bg-slate-950 rounded-3xl p-4 sm:p-6 text-white shadow-2xl border-2 border-emerald-500 animate-in fade-in duration-300 space-y-4">
-            
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                  <Camera className="w-4 h-4" />
-                  <span>
-                    {language === 'kn' ? 'ಲೈವ್ ಕ್ಯಾಮೆರಾ ವೀಕ್ಷಣೆ' : language === 'hi' ? 'लाइव कैमरा दृश्य' : 'Live Camera Viewfinder'}
-                  </span>
-                </span>
-                <span className="hidden sm:inline-block text-[10px] text-slate-400 bg-white/10 px-2 py-0.5 rounded">
-                  {cameraFacingMode === 'environment' ? 'Rear Camera (ಹಿಂಭಾಗ)' : 'Front Camera (ಮುಂಭಾಗ)'}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {hasMultipleCameras && (
-                  <button
-                    type="button"
-                    onClick={handleSwitchCamera}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition"
-                    title={t('cameraSwitch')}
-                  >
-                    <SwitchCamera className="w-4 h-4" />
-                    <span className="hidden md:inline">{t('cameraSwitch')}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={stopCamera}
-                  className="p-2 rounded-xl bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white transition"
-                  title={t('cameraClose')}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Video Viewport with Targeting Framing Box */}
-            <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-black flex items-center justify-center">
-              {isCameraLoading && (
-                <div className="flex flex-col items-center justify-center gap-2 text-emerald-400 animate-pulse">
-                  <Camera className="w-10 h-10 animate-bounce" />
-                  <p className="text-xs font-bold">Requesting camera access & initializing lens...</p>
-                </div>
-              )}
-
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className={`w-full h-full object-cover ${isCameraLoading ? 'hidden' : 'block'}`}
-              />
-
-              {!isCameraLoading && (
-                <div className="absolute inset-8 sm:inset-12 border-2 border-dashed border-emerald-400/80 rounded-2xl pointer-events-none flex flex-col justify-between p-3">
-                  <div className="flex justify-between text-emerald-400 text-[10px] font-mono">
-                    <span>┌ TOP-LEFT</span>
-                    <span>TOP-RIGHT ┐</span>
-                  </div>
-                  <div className="text-center bg-black/60 backdrop-blur-sm self-center px-3 py-1 rounded-full text-[11px] text-emerald-300 font-semibold border border-emerald-500/30">
-                    🌿 {language === 'kn' ? 'ರೋಗವಿರುವ ಎಲೆಯನ್ನು ಈ ಚೌಕಟ್ಟಿನಲ್ಲಿ ಇರಿಸಿ' : language === 'hi' ? 'रोगग्रस्त पत्ती को इस फ्रेम में रखें' : 'Center infected leaf in this reticle'}
-                  </div>
-                  <div className="flex justify-between text-emerald-400 text-[10px] font-mono">
-                    <span>└ BOTTOM-LEFT</span>
-                    <span>BOTTOM-RIGHT ┘</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {cameraError && (
-              <div className="p-3 bg-red-950/80 border border-red-500/60 rounded-xl text-xs text-red-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
-                  <span>{cameraError}</span>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleOpenMobileCameraFallback}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1"
-                  >
-                    <Camera className="w-3.5 h-3.5" />
-                    <span>Phone Camera</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenGallery}
-                    className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg text-xs font-bold transition"
-                  >
-                    Gallery
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!isCameraLoading && !cameraError && (
-              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <p className="text-xs text-slate-300 text-center sm:text-left">
-                  💡 Hold leaf steady under good natural daylight for highest accuracy
-                </p>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCapturePhoto}
-                    className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-green-500 to-emerald-600 hover:from-emerald-600 hover:to-green-600 text-white font-black text-sm shadow-xl shadow-emerald-500/30 transition transform active:scale-95 border-2 border-emerald-300"
-                  >
-                    <Camera className="w-5 h-5 animate-pulse" />
-                    <span>{t('cameraCapture')}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={stopCamera}
-                    className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* =========================================================================
-            SECTION 4: DRAG & DROP + DEMO SAMPLES + IMAGE PREVIEW & DETECT BUTTON
-           ========================================================================= */}
-        {!isCameraActive && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Left Column: Drag & Drop Zone and Demo Samples */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
-                
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-emerald-600" />
-                    <span>{language === 'kn' ? 'ಹಂತ 2: ಎಲೆಯ ಫೋಟೋ ಒದಗಿಸಿ' : language === 'hi' ? 'चरण 2: पत्ती की फोटो दें' : 'Step 2: Provide Leaf Photo'}</span>
-                  </span>
-                  <span className="text-[11px] font-semibold text-slate-400">JPG, JPEG, PNG (Max 10MB)</span>
-                </div>
-
-                {/* Drag and Drop Zone */}
-                <div
-                  onDrop={handleDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                  onClick={handleOpenGallery}
-                  className={`border-2 border-dashed rounded-2xl p-7 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-3 ${
-                    imagePreview
-                      ? 'border-emerald-400 bg-emerald-50/30'
-                      : 'border-slate-300 hover:border-emerald-500 bg-slate-50/70 hover:bg-emerald-50/40'
-                  }`}
-                >
-                  <div className="w-16 h-16 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shadow-inner">
-                    <Upload className="w-8 h-8" />
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">
-                      {language === 'kn' ? 'ಫೋಟೋ ಅಪ್‌ಲೋಡ್ ಮಾಡಲು ಇಲ್ಲಿ ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ ಎಳೆಯಿರಿ' : language === 'hi' ? 'फोटो अपलोड करने के लिए यहाँ क्लिक करें या ड्रैग करें' : 'Click to browse gallery or drag and drop photo'}
-                    </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Supports direct camera snapshots and gallery files
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startCamera('environment');
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 hover:bg-emerald-700 transition shadow-sm"
-                    >
-                      <Camera className="w-3.5 h-3.5" />
-                      <span>{t('cameraOpen')}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenMobileCameraFallback();
-                      }}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1.5 transition"
-                    >
-                      <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Quick Shutter</span>
-                    </button>
-                  </div>
-                </div>
-
-                {fileError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                    <span>{fileError}</span>
-                  </div>
-                )}
-
-                {/* Demo Crop Leaves for Instant Testing */}
-                <div>
-                  <span className="block text-xs font-bold text-slate-700 mb-2">
-                    {language === 'kn' ? 'ಅಥವಾ ತಕ್ಷಣ ಪರೀಕ್ಷಿಸಲು ಡೆಮೊ ಮಾದರಿಯನ್ನು ಆರಿಸಿ:' : language === 'hi' ? 'या तुरंत जांचने के लिए डेमो पत्ती चुनें:' : 'Or test immediately with a verified demo leaf:'}
-                  </span>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {DEMO_LEAF_SAMPLES.map((demo) => (
-                      <button
-                        key={demo.id}
-                        type="button"
-                        onClick={() => handleSelectDemoSample(demo)}
-                        className={`p-2 rounded-xl border text-left transition flex flex-col gap-1.5 ${
-                          imagePreview === demo.sampleImage
-                            ? 'border-emerald-600 bg-emerald-50/90 shadow-sm ring-2 ring-emerald-500'
-                            : 'border-slate-200 hover:border-slate-300 bg-white'
-                        }`}
-                      >
-                        <img
-                          src={demo.sampleImage}
-                          alt={demo.cropName}
-                          className="w-full h-14 object-cover rounded-lg"
-                        />
-                        <div className="truncate">
-                          <span className="text-[11px] font-bold text-slate-800 block truncate">
-                            {demo.cropName}
-                          </span>
-                          <span className="text-[10px] text-slate-500 block truncate">
-                            {demo.diseaseName.split('(')[0]}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-
-              {/* Photography Guidelines Card */}
-              <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200/80 text-xs text-emerald-900 space-y-1">
-                <span className="font-bold flex items-center gap-1.5 text-emerald-950">
-                  <Lightbulb className="w-4 h-4 text-emerald-600" />
-                  <span>{language === 'kn' ? 'ಉತ್ತಮ ನಿಖರತೆಗಾಗಿ ಸಲಹೆಗಳು:' : language === 'hi' ? 'सटीक परिणाम के लिए सुझाव:' : 'Tips for Clinical Accuracy:'}</span>
-                </span>
-                <ul className="list-disc list-inside text-emerald-800 space-y-0.5 pl-1">
-                  <li>Capture the leaf in clear daylight without hard shadows.</li>
-                  <li>Keep yellowed or spotted leaf lesions centered in the camera viewfinder.</li>
-                  <li>Ensure the lens focuses on the leaf surface rather than background soil or weeds.</li>
-                </ul>
-              </div>
-            </div>
-
-            {/* Right Column: Selected Image Preview & "Detect Disease" Button */}
-            <div className="lg:col-span-5 space-y-4">
-              <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
-                
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                  <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-emerald-600" />
-                    <span>{language === 'kn' ? 'ಹಂತ 3: ಪೂರ್ವವೀಕ್ಷಣೆ ಮತ್ತು ಪತ್ತೆ' : language === 'hi' ? 'चरण 3: पूर्वावलोकन और जांच' : 'Step 3: Preview & Detect'}</span>
-                  </span>
-                  {imagePreview && (
-                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                      Ready to Scan
-                    </span>
-                  )}
-                </div>
-
-                {imagePreview ? (
-                  <div className="space-y-4">
-                    <div className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-slate-950 shadow-inner group border border-slate-200">
-                      <img
-                        src={imagePreview}
-                        alt="Selected plant leaf"
-                        className="w-full h-full object-cover object-center"
-                      />
-
-                      {/* Laser scanning visual animation */}
-                      {isScanning && (
-                        <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent top-1/2 -translate-y-1/2 shadow-[0_0_20px_#10b981] animate-pulse" />
-                      )}
-
-                      {/* Metadata overlay badge */}
-                      <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur-md px-2.5 py-1 rounded-xl text-white text-[11px] font-semibold flex items-center gap-1.5 border border-white/10">
-                        {imageSource === 'camera' ? (
-                          <>
-                            <Camera className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Camera Photo</span>
-                          </>
-                        ) : imageSource === 'gallery' ? (
-                          <>
-                            <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Gallery Upload</span>
-                          </>
-                        ) : (
-                          <>
-                            <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Demo Sample</span>
-                          </>
-                        )}
-                      </div>
-
-                      <div className="absolute bottom-3 left-3 right-3 bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-xl text-white text-[11px] flex justify-between items-center border border-white/10">
-                        <span className="font-bold truncate">{SUPPORTED_CROPS.find(c => c.id === selectedCrop)?.name || selectedCrop}</span>
-                        <span className="text-slate-300 text-[10px] truncate max-w-[150px]">{farmLocation}</span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons: Retake / Change / Delete */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {imageSource === 'camera' ? (
-                        <button
-                          type="button"
-                          onClick={handleRetakePhoto}
-                          className="py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                        >
-                          <Camera className="w-4 h-4 text-emerald-600" />
-                          <span>{t('cameraRetake')}</span>
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={handleOpenGallery}
-                          className="py-2.5 px-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                        >
-                          <RefreshCw className="w-4 h-4 text-emerald-600" />
-                          <span>Change Image</span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={handleRemoveImage}
-                        className="py-2.5 px-3 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition flex items-center justify-center gap-1.5"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span>{t('removePhoto')}</span>
-                      </button>
-                    </div>
-
-                    {/* Primary Detect Disease Button */}
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      icon={ScanLine}
-                      loading={isScanning}
-                      onClick={handleDetectDisease}
-                      className="w-full justify-center shadow-emerald-600/30 shadow-lg text-sm font-extrabold py-3.5"
-                    >
-                      {isScanning
-                        ? (language === 'kn' ? 'ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...' : language === 'hi' ? 'जांच हो रही है...' : 'Analyzing Plant Disease...')
-                        : (language === 'kn' ? 'ರೋಗ ಪತ್ತೆ ಮಾಡಿ (Detect Disease)' : language === 'hi' ? 'रोग पहचानें (Detect Disease)' : 'Detect Disease')
-                      }
-                    </Button>
-
-                    {isScanning && (
-                      <div className="text-center text-xs font-semibold text-emerald-700 animate-pulse">
-                        {scanStepText}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-3 border border-slate-100 rounded-2xl bg-slate-50/50">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                      <Leaf className="w-6 h-6" />
-                    </div>
-                    <p className="font-semibold text-slate-600">
-                      {language === 'kn' ? 'ಯಾವುದೇ ಎಲೆಯ ಫೋಟೋ ಆಯ್ಕೆ ಮಾಡಲಾಗಿಲ್ಲ' : language === 'hi' ? 'कोई पत्ती की फोटो नहीं चुनी गई है' : 'No crop leaf photo selected yet.'}
-                    </p>
-                    <p className="text-[11px] text-slate-400 max-w-xs">
-                      Take a live camera snapshot or upload from gallery to activate the "Detect Disease" scanner.
-                    </p>
-                  </div>
-                )}
-
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* =========================================================================
-            SECTION 5: HONEST TRUTH-IN-AI REPORTING (When AI Service is Offline/Uncertain)
-           ========================================================================= */}
-        {aiErrorState && (
-          <div className="bg-amber-50 rounded-3xl p-6 sm:p-8 border-2 border-amber-300 shadow-md space-y-4 animate-in fade-in duration-300">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-md">
-                <ShieldAlert className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                    Truth-in-AI Guarantee
-                  </span>
-                  <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
-                    Status: {aiErrorState.status || 'Offline'}
-                  </span>
-                </div>
-                <h3 className="text-base sm:text-lg font-black text-amber-950">
-                  AI Disease Detection Microservice is Unavailable
-                </h3>
-                <p className="text-xs sm:text-sm text-amber-900 leading-relaxed">
-                  {aiErrorState.message}
-                </p>
-                <div className="p-3 bg-white/80 rounded-xl border border-amber-200 text-xs text-amber-950 mt-2">
-                  <strong>Notice:</strong> KrishiMitra strictly forbids displaying randomized fake results as AI detection. Rather than guessing, we recommend reviewing our certified ICAR Agronomic Disease Knowledge Base below or retrying once the backend vision model is running.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleDetectDisease}
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-sm"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Retry AI Connection</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowEncyclopedia(true)}
-                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition flex items-center gap-1.5"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Browse Verified Disease Guide for {SUPPORTED_CROPS.find(c => c.id === selectedCrop)?.name || selectedCrop}</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* =========================================================================
-            SECTION 6: AI DISEASE DETECTION RESULT PANEL
-           ========================================================================= */}
-        {detectionResult && (
-          <div className="bg-white rounded-3xl p-6 sm:p-10 border-2 border-emerald-500 shadow-xl space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-300">
-            
-            {/* Header: Disease Name & Confidence Badge */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-slate-200 gap-4">
               <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                  <span className="text-xs font-black uppercase tracking-wider text-emerald-700">
-                    AI Diagnosis Complete • Verified Clinical Report
-                  </span>
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  {detectionResult.diseaseName}
-                </h2>
-
-                <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-slate-600 mt-1">
-                  <span>
-                    Crop: <strong className="text-slate-900">{detectionResult.cropName}</strong>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Location: <strong className="text-slate-900">{detectionResult.farmLocation}</strong>
-                  </span>
-                  <span>•</span>
-                  <span>
-                    Date: <strong className="text-slate-900">{new Date(detectionResult.scannedAt).toLocaleDateString()} {new Date(detectionResult.scannedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Confidence Badge */}
-                <span className="px-3.5 py-1.5 rounded-2xl bg-emerald-100 text-emerald-900 text-xs sm:text-sm font-black border border-emerald-300 flex items-center gap-1.5 shadow-sm">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>{detectionResult.confidencePercentage} Confidence</span>
-                </span>
-
-                <span className={`px-3 py-1.5 rounded-2xl text-xs font-extrabold border ${
-                  detectionResult.isHealthy
-                    ? 'bg-green-100 text-green-900 border-green-300'
-                    : 'bg-amber-100 text-amber-900 border-amber-300'
-                }`}>
-                  {detectionResult.isHealthy ? 'Healthy Plant' : 'Pathogen Detected'}
-                </span>
-              </div>
-            </div>
-
-            {/* A. Disease Symptoms */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <span>Observed Disease Symptoms</span>
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {detectionResult.symptoms && detectionResult.symptoms.map((symp, i) => (
-                  <div
-                    key={i}
-                    className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 text-xs text-amber-950 flex items-start gap-2"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                    <span>{symp}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* B. Possible Causes */}
-            {detectionResult.possibleCauses && detectionResult.possibleCauses.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-emerald-600" />
-                  <span>Possible Causes & Pathogen Etiology</span>
+                <h3 className="text-sm sm:text-base font-bold text-amber-900">
+                  Google Gemini Multimodal API Key Required for Live AI Analysis
                 </h3>
-                <ul className="space-y-1.5 text-xs text-slate-700 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                  {detectionResult.possibleCauses.map((cause, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-emerald-600 font-bold">•</span>
-                      <span>{cause}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* C. Recommended Treatments (Organic vs Chemical) */}
-            <div className="space-y-2">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Droplets className="w-4 h-4 text-emerald-600" />
-                <span>Recommended Treatment & Prescription Dosage</span>
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Organic Treatment */}
-                <div className="p-4 bg-green-50 rounded-2xl border border-green-200 space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-green-950 text-xs">
-                    <Sparkles className="w-4 h-4 text-green-600" />
-                    <span>Organic & Bio-Control Measures</span>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-green-900">
-                    {Array.isArray(detectionResult.recommendedTreatment?.organic)
-                      ? detectionResult.recommendedTreatment.organic.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-green-600 font-bold">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))
-                      : <li className="flex items-start gap-2"><span className="text-green-600 font-bold">•</span><span>{detectionResult.recommendedTreatment?.organic || 'Bio-fungicide application'}</span></li>
-                    }
-                  </ul>
-                </div>
-
-                {/* Chemical Treatment */}
-                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">
-                  <div className="flex items-center gap-1.5 font-bold text-blue-950 text-xs">
-                    <ShieldAlert className="w-4 h-4 text-blue-600" />
-                    <span>Chemical Treatment & Fungicide Dosage</span>
-                  </div>
-                  <ul className="space-y-1.5 text-xs text-blue-900">
-                    {Array.isArray(detectionResult.recommendedTreatment?.chemical)
-                      ? detectionResult.recommendedTreatment.chemical.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-blue-600 font-bold">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))
-                      : <li className="flex items-start gap-2"><span className="text-blue-600 font-bold">•</span><span>{detectionResult.recommendedTreatment?.chemical || 'Contact fungicide spray'}</span></li>
-                    }
-                  </ul>
-                </div>
+                <p className="text-xs sm:text-sm text-amber-800 mt-0.5">
+                  Connect your free Gemini API key to activate live plant vision. You can still browse our 
+                  verified multi-crop disease guide without an API key.
+                </p>
               </div>
             </div>
-
-            {/* D. Prevention Methods */}
-            {detectionResult.preventionMethods && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Prevention Methods for Next Cycle</span>
-                </h3>
-                <ul className="space-y-1.5 text-xs text-slate-700 bg-emerald-50/40 p-4 rounded-2xl border border-emerald-200">
-                  {detectionResult.preventionMethods.map((tip, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-emerald-600 font-bold">•</span>
-                      <span>{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* E. When to Seek Expert Advice (KVK Escalation Alert) */}
-            <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-1.5">
-              <div className="flex items-center gap-2 font-bold text-rose-950 text-xs">
-                <HelpCircle className="w-4 h-4 text-rose-600" />
-                <span className="uppercase tracking-wider">When to Seek Agronomist / KVK Expert Advice</span>
-              </div>
-              <p className="text-xs text-rose-900 leading-relaxed">
-                {detectionResult.whenToSeekExpertAdvice}
-              </p>
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Diagnosis automatically saved to local IndexedDB storage</span>
-              </span>
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRemoveImage}
-                  icon={RefreshCw}
-                >
-                  Scan Another Leaf
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleNavDashboard}
-                >
-                  Return to Dashboard
-                </Button>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {/* =========================================================================
-            SECTION 7: PAST SCAN HISTORY (IndexedDB Persisted Records)
-           ========================================================================= */}
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <History className="w-5 h-5 text-emerald-600" />
-              <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
-                {language === 'kn' ? 'ಹಿಂದಿನ ಸ್ಕ್ಯಾನ್ ಇತಿಹಾಸ (IndexedDB ನಲ್ಲಿ ಸುರಕ್ಷಿತ)' : language === 'hi' ? 'पिछला स्कैन इतिहास (IndexedDB)' : 'Saved Scan History (IndexedDB Records)'}
-              </h2>
-            </div>
-            <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">
-              {scanHistory.length} Saved Scans
-            </span>
-          </div>
-
-          {isLoadingHistory ? (
-            <div className="py-8 text-center text-xs text-slate-400 animate-pulse">
-              Loading past disease scans from IndexedDB...
-            </div>
-          ) : scanHistory.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400">
-              No previous disease scans saved yet. Scans taken with camera or uploaded from gallery will be automatically saved here.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {scanHistory.map((scan) => (
-                <div
-                  key={scan.id}
-                  onClick={() => setActiveHistoryItem(scan)}
-                  className="p-3 rounded-2xl border border-slate-200 hover:border-emerald-500 bg-white hover:bg-emerald-50/20 transition cursor-pointer flex flex-col justify-between gap-3 group shadow-sm"
-                >
-                  <div className="flex items-start gap-3">
-                    {scan.image ? (
-                      <img
-                        src={scan.image}
-                        alt={scan.diseaseName}
-                        className="w-16 h-16 rounded-xl object-cover shrink-0 border border-slate-100"
-                      />
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
-                        <Leaf className="w-6 h-6" />
-                      </div>
-                    )}
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                          {scan.cropName}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                          {new Date(scan.scannedAt || scan.savedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-
-                      <h4 className="text-xs font-bold text-slate-900 mt-1 truncate group-hover:text-emerald-700">
-                        {scan.diseaseName}
-                      </h4>
-
-                      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 mt-0.5 truncate">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span className="truncate">{scan.farmLocation || 'Farm Plot'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px]">
-                    <span className="font-bold text-emerald-800 bg-emerald-100/60 px-2 py-0.5 rounded-lg">
-                      {scan.confidencePercentage || '94.2%'}
-                    </span>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveHistoryItem(scan);
-                        }}
-                        className="p-1.5 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition"
-                        title="View Full Diagnosis"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteScan(scan.id, e)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete Scan"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-      </div>
-
-      {/* =========================================================================
-          MODAL A: PAST SCAN FULL REPORT MODAL
-         ========================================================================= */}
-      {activeHistoryItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-5 border border-slate-200 shadow-2xl relative my-8">
-            <button
-              type="button"
-              onClick={() => setActiveHistoryItem(null)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-start gap-4">
-              {activeHistoryItem.image && (
-                <img
-                  src={activeHistoryItem.image}
-                  alt={activeHistoryItem.diseaseName}
-                  className="w-24 h-24 rounded-2xl object-cover border border-slate-200 shadow-sm shrink-0"
-                />
-              )}
-              <div className="min-w-0">
-                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                  Archived Scan • {activeHistoryItem.cropName}
-                </span>
-                <h3 className="text-xl font-black text-slate-900">
-                  {activeHistoryItem.diseaseName}
-                </h3>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-1">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{activeHistoryItem.farmLocation}</span>
-                  </span>
-                  <span>•</span>
-                  <span>{new Date(activeHistoryItem.scannedAt).toLocaleString()}</span>
-                  <span>•</span>
-                  <span className="font-bold text-emerald-800">{activeHistoryItem.confidencePercentage}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Symptoms */}
-            {activeHistoryItem.symptoms && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Symptoms:</h4>
-                <ul className="text-xs text-slate-700 space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                  {activeHistoryItem.symptoms.map((s, i) => (
-                    <li key={i} className="flex items-start gap-1.5">
-                      <span className="text-amber-500 font-bold">•</span>
-                      <span>{s}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Treatment */}
-            {activeHistoryItem.recommendedTreatment && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700">Recommended Treatment:</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-green-950">
-                    <strong>Organic:</strong>
-                    <p className="mt-1">
-                      {Array.isArray(activeHistoryItem.recommendedTreatment.organic)
-                        ? activeHistoryItem.recommendedTreatment.organic.join('; ')
-                        : activeHistoryItem.recommendedTreatment.organic}
-                    </p>
-                  </div>
-                  <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-950">
-                    <strong>Chemical:</strong>
-                    <p className="mt-1">
-                      {Array.isArray(activeHistoryItem.recommendedTreatment.chemical)
-                        ? activeHistoryItem.recommendedTreatment.chemical.join('; ')
-                        : activeHistoryItem.recommendedTreatment.chemical}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Expert Advice Criteria */}
-            {activeHistoryItem.whenToSeekExpertAdvice && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-950">
-                <strong>When to Seek KVK Advice:</strong>
-                <p className="mt-0.5">{activeHistoryItem.whenToSeekExpertAdvice}</p>
-              </div>
-            )}
-
-            <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+            <div className="flex items-center gap-2 sm:self-center">
               <button
-                type="button"
-                onClick={(e) => handleDeleteScan(activeHistoryItem.id, e)}
-                className="text-xs text-red-600 hover:text-red-700 font-bold flex items-center gap-1"
+                onClick={handleOpenApiKeyModal}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow transition-all flex items-center gap-1.5 whitespace-nowrap"
               >
-                <Trash2 className="w-4 h-4" />
-                <span>Delete Record</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveHistoryItem(null)}
-                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition"
-              >
-                Close Report
+                <Key className="w-4 h-4" />
+                Configure Gemini Key
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* =========================================================================
-          MODAL B: OFFLINE VERIFIED AGRONOMY DISEASE ENCYCLOPEDIA
-         ========================================================================= */}
-      {showEncyclopedia && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 border border-slate-200 shadow-2xl relative my-8 max-h-[90vh] flex flex-col">
-            
-            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-emerald-600" />
+      {/* MAIN CONTENT WORKFLOW */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+        {/* THREE-STEP WORKFLOW INDICATOR */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+          <div className={`p-3 rounded-2xl border flex items-center gap-2 sm:gap-3 transition-all ${
+            !imagePreview ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-slate-200'
+          }`}>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center flex-shrink-0">
+              1
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-800 truncate">STEP 1</div>
+              <div className="text-[11px] text-slate-500 hidden sm:block truncate">Capture or Upload</div>
+            </div>
+          </div>
+
+          <div className={`p-3 rounded-2xl border flex items-center gap-2 sm:gap-3 transition-all ${
+            isScanning ? 'bg-emerald-50 border-emerald-400 shadow-md ring-2 ring-emerald-400/30' : 'bg-white border-slate-200'
+          }`}>
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center flex-shrink-0 ${
+              isScanning ? 'bg-emerald-600 text-white animate-pulse' : 'bg-slate-200 text-slate-700'
+            }`}>
+              2
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-800 truncate">STEP 2</div>
+              <div className="text-[11px] text-slate-500 hidden sm:block truncate">AI Analyzes Plant</div>
+            </div>
+          </div>
+
+          <div className={`p-3 rounded-2xl border flex items-center gap-2 sm:gap-3 transition-all ${
+            detectionResult ? 'bg-emerald-50 border-emerald-300 shadow-sm' : 'bg-white border-slate-200'
+          }`}>
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center flex-shrink-0 ${
+              detectionResult ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              3
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-slate-800 truncate">STEP 3</div>
+              <div className="text-[11px] text-slate-500 hidden sm:block truncate">Diagnosis & Guidance</div>
+            </div>
+          </div>
+        </div>
+
+        {/* WORKSPACE GRID */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* LEFT COLUMN: CAPTURE, CROP SELECTOR, & CONTROLS (5 cols) */}
+          <div className="lg:col-span-5 space-y-5">
+            {/* CROP & METADATA CARD */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                  <Leaf className="w-4 h-4 text-emerald-600" />
+                  Select Crop or Plant
+                </span>
+                <span className="text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  Optional Hint
+                </span>
+              </div>
+
+              {/* Crop Selector Button (Opens selector popover) */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsCropDropdownOpen(!isCropDropdownOpen)}
+                  className="w-full flex items-center justify-between p-3.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200 rounded-2xl text-left transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{selectedCropMeta.icon}</span>
+                    <div>
+                      <div className="text-sm font-bold text-slate-900">{selectedCropMeta.name}</div>
+                      <div className="text-xs text-slate-500">
+                        {language === 'kn' ? selectedCropMeta.localKn : language === 'hi' ? selectedCropMeta.localHi : (selectedCropMeta.scientificName || 'Universal Detection')}
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </button>
+
+                {/* Dropdown / Modal for Crops */}
+                {isCropDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl p-3 z-40 max-h-96 overflow-y-auto">
+                    {/* Search inside crop selector */}
+                    <div className="relative mb-2">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Search crop in English, ಕನ್ನಡ, or हिंदी..."
+                        value={cropSearch}
+                        onChange={(e) => setCropSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    {/* Category Tabs */}
+                    <div className="flex gap-1 overflow-x-auto pb-2 mb-2 scrollbar-none border-b border-slate-100">
+                      {CROP_CATEGORIES.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedCategory(cat.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                            selectedCategory === cat.id
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          {language === 'kn' ? cat.nameKn : language === 'hi' ? cat.nameHi : cat.name}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Auto-Detect Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCrop('auto');
+                        setIsCropDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left text-xs transition-colors mb-1 ${
+                        selectedCrop === 'auto' ? 'bg-emerald-100/80 font-bold text-emerald-900' : 'hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <span className="text-lg">✨</span>
+                      <div>
+                        <div className="font-bold">Auto-Detect Plant (Any Crop)</div>
+                        <div className="text-[10px] text-slate-500">Gemini will autonomously identify plant species</div>
+                      </div>
+                    </button>
+
+                    {/* Crop List */}
+                    <div className="space-y-0.5">
+                      {filteredCrops.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCrop(c.id);
+                            setIsCropDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left text-xs transition-colors ${
+                            selectedCrop === c.id ? 'bg-emerald-100 font-bold text-emerald-900' : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span>{c.icon}</span>
+                            <span>{c.name}</span>
+                            <span className="text-[10px] text-slate-400">
+                              ({language === 'kn' ? c.localKn : language === 'hi' ? c.localHi : c.scientificName})
+                            </span>
+                          </div>
+                          {selectedCrop === c.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Farm Location & Date Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
-                  <h3 className="text-lg font-black text-slate-900">
-                    Certified ICAR Agronomic Disease Knowledge Base
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Verified clinical references covering Tomato, Rice, Wheat, Cotton, Maize, Chilli, Potato & more
-                  </p>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <MapPin className="w-3 h-3 text-emerald-600" />
+                    Farm Location
+                  </label>
+                  <input
+                    type="text"
+                    value={farmLocation}
+                    onChange={(e) => setFarmLocation(e.target.value)}
+                    placeholder="e.g. Raichur Farm Plot 2"
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-emerald-600" />
+                    Scan Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={scanDateTime}
+                    onChange={(e) => setScanDateTime(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CAMERA & CAPTURE INTERFACE */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                  <Camera className="w-4 h-4 text-emerald-600" />
+                  Leaf Photography
+                </span>
+                {imageSource && (
+                  <span className="text-[11px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full capitalize">
+                    Source: {imageSource}
+                  </span>
+                )}
+              </div>
+
+              {/* PREVIEW CONTAINER */}
+              <div className="relative aspect-video sm:aspect-square w-full rounded-2xl bg-slate-900 overflow-hidden flex items-center justify-center border border-slate-200">
+                {/* 1. Live Camera Stream */}
+                {isCameraActive && (
+                  <div className="relative w-full h-full">
+                    <video
+                      ref={videoRef}
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Camera Overlay Guide */}
+                    <div className="absolute inset-4 sm:inset-8 border-2 border-dashed border-white/60 rounded-2xl pointer-events-none flex items-center justify-center">
+                      <div className="bg-black/40 backdrop-blur-sm text-white text-[11px] px-3 py-1.5 rounded-full">
+                        Center leaf inside frame
+                      </div>
+                    </div>
+
+                    {/* Camera Control Overlay */}
+                    <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-3 px-4">
+                      {hasMultipleCameras && (
+                        <button
+                          type="button"
+                          onClick={switchCameraFacing}
+                          className="p-3 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-all"
+                          title="Switch Camera"
+                        >
+                          <SwitchCamera className="w-5 h-5" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={capturePhotoFromCamera}
+                        className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm rounded-full shadow-lg shadow-emerald-500/40 flex items-center gap-2 transition-all transform active:scale-95"
+                      >
+                        <Camera className="w-4 h-4" />
+                        Capture Leaf Photo
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={stopCamera}
+                        className="p-3 bg-black/50 text-white rounded-full hover:bg-black/70 backdrop-blur-md transition-all"
+                        title="Cancel Camera"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Photo Preview */}
+                {!isCameraActive && imagePreview && (
+                  <div className="relative w-full h-full group">
+                    <img
+                      src={imagePreview}
+                      alt="Crop Leaf Preview"
+                      className="w-full h-full object-cover"
+                    />
+
+                    {/* Scanning Animation Overlay */}
+                    {isScanning && (
+                      <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[1px] flex flex-col items-center justify-center text-white p-4">
+                        <div className="w-16 h-16 rounded-full border-4 border-emerald-400 border-t-transparent animate-spin mb-4" />
+                        <div className="text-sm font-bold text-center text-emerald-200">
+                          {scanSteps[scanStepIndex]}
+                        </div>
+                        <div className="w-48 bg-emerald-900/80 rounded-full h-1.5 mt-3 overflow-hidden">
+                          <div
+                            className="bg-emerald-400 h-full transition-all duration-300"
+                            style={{ width: `${((scanStepIndex + 1) / 4) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Preview action buttons */}
+                    {!isScanning && (
+                      <div className="absolute top-3 right-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleRetakePhoto}
+                          className="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-all"
+                          title="Retake Photo"
+                        >
+                          <RefreshCw className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="p-2 bg-red-600/80 hover:bg-red-700 text-white rounded-xl backdrop-blur-md transition-all"
+                          title="Remove Photo"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Empty Placeholder */}
+                {!isCameraActive && !imagePreview && (
+                  <div className="text-center p-6 text-slate-400 space-y-3">
+                    <div className="w-16 h-16 rounded-2xl bg-slate-800 text-slate-500 mx-auto flex items-center justify-center">
+                      <ImageIcon className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-200">No plant photograph selected</p>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                        Take a photo using your mobile camera or upload a leaf picture from your gallery
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Error alerts */}
+              {fileError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>{fileError}</span>
+                </div>
+              )}
+
+              {cameraError && (
+                <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  <span>{cameraError}</span>
+                </div>
+              )}
+
+              {/* CAPTURE BUTTONS ROW */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => startCamera('environment')}
+                  disabled={isScanning}
+                  className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                >
+                  <Camera className="w-4 h-4" />
+                  Take Photo
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenGallery}
+                  disabled={isScanning}
+                  className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <Upload className="w-4 h-4" />
+                  From Gallery
+                </button>
+              </div>
+
+              {/* Native Mobile Camera Fallback button */}
+              <button
+                type="button"
+                onClick={handleOpenMobileCameraFallback}
+                className="w-full py-2 bg-slate-50 hover:bg-slate-100 text-slate-600 text-xs font-medium rounded-xl border border-slate-200/80 transition-colors"
+              >
+                Having camera issues? Open native camera app
+              </button>
+
+              {/* PRIMARY ANALYZE PLANT BUTTON */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleAnalyzePlant}
+                  disabled={!imagePreview || isScanning}
+                  className={`w-full py-4 px-6 rounded-2xl font-extrabold text-sm sm:text-base flex items-center justify-center gap-2.5 shadow-lg transition-all ${
+                    !imagePreview || isScanning
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                      : 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-emerald-600/30 active:scale-[0.98]'
+                  }`}
+                >
+                  {isScanning ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Analyzing with Google Gemini...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 text-yellow-300" />
+                      Analyze Plant with Gemini AI
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 12 DEMO SAMPLES CAROUSEL / GRID */}
+            <div className="bg-white rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    One-Click Demo Crop Samples
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Test Gemini across 12 diverse crops without camera
+                  </div>
                 </div>
               </div>
 
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 pt-1 max-h-56 overflow-y-auto">
+                {DEMO_LEAF_SAMPLES.map((demo) => (
+                  <button
+                    key={demo.id}
+                    type="button"
+                    onClick={() => handleSelectDemoSample(demo)}
+                    className="p-1.5 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/50 text-left transition-all group flex flex-col items-center text-center"
+                  >
+                    <div className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 mb-1.5">
+                      <img
+                        src={demo.sampleImage}
+                        alt={demo.cropName}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                    </div>
+                    <div className="text-[11px] font-bold text-slate-800 truncate w-full">
+                      {demo.cropName}
+                    </div>
+                    <div className="text-[9px] text-slate-400 truncate w-full">
+                      {demo.diseaseName.split('(')[0]}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: AI RESULTS & CLINICAL ADVISORY (7 cols) */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* 1. AI ERROR / DISCONNECTED STATE (if any) */}
+            {aiErrorState && (
+              <div className="bg-white rounded-3xl border border-red-200 p-6 shadow-sm space-y-4">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">
+                      {aiErrorState.status === 'gemini_disconnected'
+                        ? 'Google Gemini API Key Needed'
+                        : aiErrorState.status === 'rejected_non_plant'
+                        ? 'Image Not Recognized as Plant Leaf'
+                        : 'AI Vision Analysis Notification'}
+                    </h3>
+                    <p className="text-sm text-slate-600 mt-1">
+                      {aiErrorState.message}
+                    </p>
+                  </div>
+                </div>
+
+                {aiErrorState.needsApiKey && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleOpenApiKeyModal}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow"
+                    >
+                      <Key className="w-4 h-4" />
+                      Enter Gemini API Key
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 2. SUCCESSFUL AI DETECTION REPORT */}
+            {detectionResult && (
+              <div className="bg-white rounded-3xl border border-emerald-200/80 shadow-md overflow-hidden space-y-6">
+                {/* Result Header Banner */}
+                <div className={`p-6 text-white ${
+                  detectionResult.isHealthy
+                    ? 'bg-gradient-to-r from-emerald-600 to-green-700'
+                    : detectionResult.healthStatus === 'Nutrient_Deficient'
+                    ? 'bg-gradient-to-r from-amber-600 to-orange-700'
+                    : 'bg-gradient-to-r from-rose-600 to-red-700'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold mb-2">
+                        <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                        AI Diagnosis Complete • {detectionResult.confidencePercentage} Confidence
+                      </div>
+                      <h3 className="text-2xl font-black text-white">
+                        {detectionResult.diseaseName}
+                      </h3>
+                      <p className="text-sm text-white/90 font-medium mt-1">
+                        {detectionResult.plantName} • <em>{detectionResult.scientificName}</em>
+                      </p>
+                    </div>
+
+                    <div className="self-start sm:self-center">
+                      <span className="px-4 py-2 rounded-2xl bg-white/20 backdrop-blur-md text-white font-extrabold text-sm border border-white/30 uppercase tracking-wider">
+                        {detectionResult.healthStatus}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SIDE-BY-SIDE SUMMARY */}
+                <div className="px-6 grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
+                  <div className="sm:col-span-4 aspect-square rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner">
+                    <img
+                      src={detectionResult.image}
+                      alt="Scanned Plant Leaf"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-8 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-slate-400 font-semibold uppercase text-[10px]">Crop Group</div>
+                        <div className="text-slate-800 font-bold text-sm mt-0.5">{detectionResult.cropName}</div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-slate-400 font-semibold uppercase text-[10px]">Pathogen Type</div>
+                        <div className="text-slate-800 font-bold text-sm mt-0.5">{detectionResult.diseaseCategory}</div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-slate-400 font-semibold uppercase text-[10px]">Farm Location</div>
+                        <div className="text-slate-800 font-bold text-xs mt-0.5 truncate">{detectionResult.farmLocation}</div>
+                      </div>
+
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="text-slate-400 font-semibold uppercase text-[10px]">Image Quality</div>
+                        <div className="text-slate-800 font-bold text-xs mt-0.5">{detectionResult.imageQuality || 'Clear'}</div>
+                      </div>
+                    </div>
+
+                    {/* Uncertainty Notice */}
+                    <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-amber-900 text-xs flex items-start gap-2">
+                      <Info className="w-4 h-4 flex-shrink-0 text-amber-700 mt-0.5" />
+                      <div>
+                        <span className="font-bold">AI Heuristic Notice: </span>
+                        <span>{detectionResult.uncertaintyNote}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* VISIBLE SYMPTOMS */}
+                {detectionResult.visibleSymptoms && detectionResult.visibleSymptoms.length > 0 && (
+                  <div className="px-6 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Eye className="w-4 h-4 text-emerald-600" />
+                      Visible Symptoms Observed on Leaf
+                    </h4>
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                      {detectionResult.visibleSymptoms.map((symptom, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 flex-shrink-0" />
+                          <span>{symptom}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* POSSIBLE CAUSES */}
+                {detectionResult.possibleCauses && detectionResult.possibleCauses.length > 0 && (
+                  <div className="px-6 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Lightbulb className="w-4 h-4 text-amber-600" />
+                      Contributing Causes & Favouring Conditions
+                    </h4>
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                      {detectionResult.possibleCauses.map((cause, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1.5 flex-shrink-0" />
+                          <span>{cause}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* TREATMENT RECOMMENDATIONS WITH TABS */}
+                <div className="px-6 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Droplets className="w-4 h-4 text-emerald-600" />
+                      Recommended Treatment Protocol
+                    </h4>
+
+                    {/* Tab Switcher */}
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setActiveTreatmentTab('organic')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          activeTreatmentTab === 'organic'
+                            ? 'bg-white text-emerald-700 shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🌱 Organic & Bio
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTreatmentTab('chemical')}
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                          activeTreatmentTab === 'chemical'
+                            ? 'bg-white text-emerald-700 shadow-sm'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🧪 Chemical Control
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/50 rounded-2xl p-4 border border-emerald-100 space-y-2.5">
+                    {activeTreatmentTab === 'organic' ? (
+                      <>
+                        <div className="text-[11px] font-bold text-emerald-900 uppercase">
+                          Biological & Organic Remedies (Safe for Predators & Soil Health):
+                        </div>
+                        {detectionResult.recommendedTreatment?.organic && detectionResult.recommendedTreatment.organic.length > 0 ? (
+                          detectionResult.recommendedTreatment.organic.map((treat, idx) => (
+                            <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-800">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                              <span>{treat}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-500">No organic treatment specified.</p>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[11px] font-bold text-slate-800 uppercase">
+                          CIBRC Approved Chemical Dosages (Use only with proper protective gear):
+                        </div>
+                        {detectionResult.recommendedTreatment?.chemical && detectionResult.recommendedTreatment.chemical.length > 0 ? (
+                          detectionResult.recommendedTreatment.chemical.map((treat, idx) => (
+                            <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-800">
+                              <CheckCircle2 className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                              <span>{treat}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-500">No chemical spray required for this condition.</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* PREVENTIVE MEASURES */}
+                {detectionResult.preventionMethods && detectionResult.preventionMethods.length > 0 && (
+                  <div className="px-6 space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      Preventive Agronomic Practices
+                    </h4>
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2">
+                      {detectionResult.preventionMethods.map((prev, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 flex-shrink-0" />
+                          <span>{prev}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* EXPERT CONSULTATION NOTICE & SOURCE */}
+                <div className="px-6 space-y-3">
+                  <div className="p-4 bg-red-50/70 border border-red-200/80 rounded-2xl text-red-900 text-xs flex items-start gap-3">
+                    <AlertTriangle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold">When to Escalate to Local Agronomist / KVK:</div>
+                      <div className="mt-0.5 text-red-800">{detectionResult.whenToSeekExpertAdvice}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                    <span>Reference: <strong>{detectionResult.referenceSource}</strong></span>
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5" /> Verified Guidelines
+                    </span>
+                  </div>
+                </div>
+
+                {/* ACTION BUTTONS FOOTER */}
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadReport}
+                      className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download Report
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowHistoryDrawer(true)}
+                      className="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+                    >
+                      <History className="w-4 h-4" />
+                      View Past Scans ({scanHistory.length})
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRetakePhoto}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Scan Another Leaf
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. DEFAULT PLACEHOLDER (BEFORE SCAN) */}
+            {!detectionResult && !aiErrorState && (
+              <div className="bg-white rounded-3xl border border-slate-200/80 p-8 text-center space-y-4 shadow-sm">
+                <div className="w-20 h-20 rounded-3xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center shadow-inner">
+                  <ScanLine className="w-10 h-10 animate-pulse" />
+                </div>
+                <div className="max-w-md mx-auto space-y-1">
+                  <h3 className="text-lg font-extrabold text-slate-800">
+                    Ready to Scan Your Crop Leaf
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                    Capture or upload a leaf photograph on the left. Google Gemini Multimodal AI will identify 
+                    the crop, assess health status, diagnose diseases, and provide verified organic and chemical treatments.
+                  </p>
+                </div>
+
+                {/* Feature Pills */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-3 max-w-lg mx-auto text-left">
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div className="text-emerald-700 font-bold text-xs">🌾 All Crops</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Cereals, pulses, vegetables, fruits & trees</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                    <div className="text-emerald-700 font-bold text-xs">🧪 Dual Treatment</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Both organic biocontrol & chemical dosages</div>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 col-span-2 sm:col-span-1">
+                    <div className="text-emerald-700 font-bold text-xs">🏛️ ICAR Backed</div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">Validated agricultural university standards</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* GEMINI API KEY CONFIGURATION MODAL */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Key className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Google Gemini API Configuration</h3>
+                  <p className="text-xs text-slate-500">Powers real multimodal image understanding</p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowEncyclopedia(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                onClick={() => setShowApiKeyModal(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Search Input */}
-            <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-              <input
-                type="text"
-                value={encyclopediaSearch}
-                onChange={(e) => setEncyclopediaSearch(e.target.value)}
-                placeholder="Search by disease name (e.g. Blast, Rust, Early Blight) or crop..."
-                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-              />
-            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
+                  Gemini API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={inputApiKey}
+                  onChange={(e) => setInputApiKey(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
+                />
+              </div>
 
-            {/* Encyclopedia Disease Cards */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-              {filteredEncyclopedia.length === 0 ? (
-                <div className="py-12 text-center text-xs text-slate-400">
-                  No disease matching "{encyclopediaSearch}" found in encyclopedia.
+              {/* Status Display */}
+              <div className="p-3 bg-slate-50 rounded-xl text-xs text-slate-600 space-y-1">
+                <div>Active Key Status: <strong>{geminiStatus.maskedKey}</strong></div>
+                <div>Key Source: <strong className="capitalize">{geminiStatus.source}</strong></div>
+              </div>
+
+              {/* Feedback messages */}
+              {apiKeyFeedback && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 ${
+                  apiKeyFeedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                  apiKeyFeedback.type === 'error' ? 'bg-red-50 text-red-800 border border-red-200' :
+                  'bg-blue-50 text-blue-800 border border-blue-200'
+                }`}>
+                  {apiKeyFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+                  <span>{apiKeyFeedback.message}</span>
                 </div>
-              ) : (
-                filteredEncyclopedia.map((guide, idx) => (
-                  <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider bg-emerald-100 px-2 py-0.5 rounded">
-                          {guide.cropName}
-                        </span>
-                        <h4 className="text-base font-black text-slate-900 mt-1">
-                          {guide.diseaseName}
-                        </h4>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <span className="text-[11px] font-bold text-slate-700">Symptoms:</span>
-                      <ul className="text-xs text-slate-600 space-y-0.5 pl-3 list-disc">
-                        {guide.symptoms && guide.symptoms.map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div className="p-3 bg-green-50 rounded-xl border border-green-200 text-green-950">
-                        <strong className="block mb-1 text-green-900 font-bold">Organic Remedies:</strong>
-                        <ul className="space-y-0.5 list-disc pl-3">
-                          {Array.isArray(guide.treatment?.organic)
-                            ? guide.treatment.organic.map((t, i) => <li key={i}>{t}</li>)
-                            : <li>{guide.treatment?.organic}</li>}
-                        </ul>
-                      </div>
-                      <div className="p-3 bg-blue-50 rounded-xl border border-blue-200 text-blue-950">
-                        <strong className="block mb-1 text-blue-900 font-bold">Chemical Controls:</strong>
-                        <ul className="space-y-0.5 list-disc pl-3">
-                          {Array.isArray(guide.treatment?.chemical)
-                            ? guide.treatment.chemical.map((t, i) => <li key={i}>{t}</li>)
-                            : <li>{guide.treatment?.chemical}</li>}
-                        </ul>
-                      </div>
-                    </div>
-
-                    {guide.expertAdviceCriteria && (
-                      <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-950">
-                        <strong>KVK Consultation Threshold:</strong> {guide.expertAdviceCriteria}
-                      </div>
-                    )}
-                  </div>
-                ))
               )}
+
+              {/* Security / Prototype Notice */}
+              <div className="p-3 bg-amber-50 rounded-xl text-[11px] text-amber-800 leading-relaxed border border-amber-200/60">
+                <strong>Development Prototype Notice: </strong>
+                Your API key is stored only in your local browser (<code className="font-mono">localStorage</code>) 
+                or read from <code className="font-mono">VITE_GEMINI_API_KEY</code> in <code className="font-mono">.env</code>. 
+                Get a free key from <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer" className="underline font-bold text-amber-900">Google AI Studio</a>.
+              </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 flex justify-end">
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowEncyclopedia(false)}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition"
+                onClick={handleTestApiKey}
+                disabled={isTestingApiKey || !inputApiKey.trim()}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5"
               >
-                Close Guide
+                {isTestingApiKey ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Test Connection
+                  </>
+                )}
               </button>
-            </div>
 
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveApiKey();
+                    setShowApiKeyModal(false);
+                  }}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow transition-all"
+                >
+                  Save & Connect
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
+      {/* MULTI-CROP DISEASE KNOWLEDGE GUIDE MODAL */}
+      {showKnowledgeGuide && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Guide Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-emerald-800 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white">
+                  <BookOpen className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Multi-Crop Disease Encyclopedia</h3>
+                  <p className="text-xs text-emerald-200">ICAR & Agricultural University Reference Bulletins</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowKnowledgeGuide(false)}
+                className="p-1.5 rounded-xl hover:bg-white/20 text-white/80 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Guide Filters & Search */}
+            <div className="p-4 bg-slate-50 border-b border-slate-100 space-y-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  placeholder="Search diseases, symptoms, or pathogen (e.g. Rice Blast, Rust, Anthracnose)..."
+                  value={guideSearchQuery}
+                  onChange={(e) => setGuideSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Crop Filter Buttons */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                <button
+                  type="button"
+                  onClick={() => setGuideCategoryFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${
+                    guideCategoryFilter === 'all'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  All Crops ({Object.keys(COMPREHENSIVE_DISEASE_LIBRARY).length})
+                </button>
+                {['rice', 'wheat', 'maize', 'cotton', 'groundnut', 'tomato', 'chilli', 'potato', 'onion', 'banana', 'mango', 'grapes', 'sugarcane'].map((cId) => {
+                  const meta = findCropMetadata(cId);
+                  return (
+                    <button
+                      key={cId}
+                      type="button"
+                      onClick={() => setGuideCategoryFilter(cId)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                        guideCategoryFilter === cId
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{meta?.icon || '🌱'}</span>
+                      <span>{meta?.name || cId}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Guide List */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {filteredGuideList.map((disease) => (
+                <div
+                  key={disease.id}
+                  className="p-5 rounded-2xl border border-slate-200/80 hover:border-emerald-300 bg-white hover:shadow-md transition-all space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-100">
+                          {disease.cropName}
+                        </span>
+                        <span className="text-xs font-medium text-slate-500">
+                          {disease.category}
+                        </span>
+                      </div>
+                      <h4 className="text-base font-bold text-slate-900 mt-1">
+                        {disease.diseaseName}
+                      </h4>
+                      <p className="text-xs text-slate-500 italic mt-0.5">
+                        Pathogen: {disease.pathogen}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Symptoms */}
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-700 uppercase">Key Symptoms:</div>
+                    <ul className="mt-1 space-y-1">
+                      {disease.symptoms.slice(0, 3).map((sym, i) => (
+                        <li key={i} className="text-xs text-slate-600 flex items-start gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                          <span>{sym}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Organic & Chemical quick summary */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                      <div className="font-bold text-emerald-900 text-[10px] uppercase">Organic Control</div>
+                      <div className="text-emerald-800 text-[11px] mt-0.5 truncate">
+                        {disease.treatment.organic[0] || 'Bio-fungicide foliar spray'}
+                      </div>
+                    </div>
+                    <div className="p-2.5 bg-blue-50/60 rounded-xl border border-blue-100">
+                      <div className="font-bold text-blue-900 text-[10px] uppercase">Chemical Control</div>
+                      <div className="text-blue-800 text-[11px] mt-0.5 truncate">
+                        {disease.treatment.chemical[0] || 'Targeted fungicide spray'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-[10px] text-slate-400 pt-1">
+                    Source: {disease.referenceSource}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SCAN HISTORY DRAWER / MODAL */}
+      {showHistoryDrawer && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
+          <div className="bg-white w-full max-w-md h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-emerald-800 text-white">
+              <div className="flex items-center gap-2.5">
+                <History className="w-5 h-5 text-emerald-300" />
+                <div>
+                  <h3 className="text-sm font-bold text-white">Scan History (IndexedDB)</h3>
+                  <p className="text-[11px] text-emerald-200">{scanHistory.length} saved crop scans</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowHistoryDrawer(false)}
+                className="p-1 rounded-lg hover:bg-white/20 text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search & CSV Actions */}
+            <div className="p-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Filter past scans..."
+                  value={historySearchQuery}
+                  onChange={(e) => setHistorySearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleExportHistoryCSV}
+                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm whitespace-nowrap"
+                title="Export Scans to CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                CSV
+              </button>
+            </div>
+
+            {/* Past Scans List */}
+            <div className="p-3 overflow-y-auto space-y-2.5 flex-1">
+              {filteredHistory.length === 0 ? (
+                <div className="text-center py-12 text-slate-400 space-y-2">
+                  <Leaf className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-xs">No scan records found in IndexedDB</p>
+                </div>
+              ) : (
+                filteredHistory.map((scan) => (
+                  <div
+                    key={scan.id}
+                    onClick={() => {
+                      setDetectionResult(scan);
+                      setImagePreview(scan.image);
+                      setShowHistoryDrawer(false);
+                    }}
+                    className="p-3 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/40 cursor-pointer transition-all flex items-start gap-3 bg-white"
+                  >
+                    <div className="w-14 h-14 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 border border-slate-200">
+                      {scan.image ? (
+                        <img src={scan.image} alt={scan.cropName} className="w-full h-full object-cover" />
+                      ) : (
+                        <Leaf className="w-6 h-6 text-slate-400 m-auto" />
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-900 truncate">
+                          {scan.cropName}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteScan(scan.id, e)}
+                          className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                          title="Delete Record"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="text-[11px] font-semibold text-emerald-800 truncate">
+                        {scan.diseaseName}
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1">
+                        <span>{new Date(scan.scannedAt).toLocaleDateString()}</span>
+                        <span>•</span>
+                        <span className="truncate">{scan.farmLocation}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
