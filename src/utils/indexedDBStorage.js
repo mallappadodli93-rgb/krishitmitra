@@ -6,7 +6,7 @@
 // 4. Farming Reminders (Irrigation, Fertilizer, Inspection, Pest Monitoring)
 
 const DB_NAME = 'KrishiMitra_FarmerDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const STORES = {
   FARMER_PROFILE: 'farmerProfile',
@@ -14,6 +14,7 @@ export const STORES = {
   CROP_SCHEDULES: 'cropSchedules',
   FARMING_REMINDERS: 'farmingReminders',
   FARM_LOCATIONS: 'farmLocations',
+  DISEASE_SCANS: 'diseaseScans',
 };
 
 // ==========================================
@@ -413,6 +414,15 @@ export function openFarmerDB() {
         locationStore.createIndex('village', 'village', { unique: false });
         locationStore.createIndex('isPrimary', 'isPrimary', { unique: false });
         locationStore.createIndex('createdAt', 'createdAt', { unique: false });
+      }
+
+      // 6. Crop Disease Scans Store (Diagnosis + Image + Location + Timestamp)
+      if (!db.objectStoreNames.contains(STORES.DISEASE_SCANS)) {
+        const scanStore = db.createObjectStore(STORES.DISEASE_SCANS, { keyPath: 'id' });
+        scanStore.createIndex('cropName', 'cropName', { unique: false });
+        scanStore.createIndex('diseaseName', 'diseaseName', { unique: false });
+        scanStore.createIndex('scannedAt', 'scannedAt', { unique: false });
+        scanStore.createIndex('farmLocation', 'farmLocation', { unique: false });
       }
     };
 
@@ -1001,5 +1011,71 @@ export async function setPrimaryFarmLocationInDB(id) {
     tx.onerror = (e) => reject(e.target.error);
   });
 }
+
+// ==========================================
+// 7. Crop Disease Scans Repository
+// ==========================================
+
+export async function getAllDiseaseScansFromDB() {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve) => {
+    if (!db.objectStoreNames.contains(STORES.DISEASE_SCANS)) {
+      resolve([]);
+      return;
+    }
+    const tx = db.transaction(STORES.DISEASE_SCANS, 'readonly');
+    const store = tx.objectStore(STORES.DISEASE_SCANS);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const results = request.result || [];
+      // Sort newest scans first
+      results.sort((a, b) => new Date(b.scannedAt || 0) - new Date(a.scannedAt || 0));
+      resolve(results);
+    };
+
+    request.onerror = () => {
+      resolve([]);
+    };
+  });
+}
+
+export async function saveDiseaseScanToDB(scanRecord) {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.DISEASE_SCANS, 'readwrite');
+    const store = tx.objectStore(STORES.DISEASE_SCANS);
+
+    const record = {
+      ...scanRecord,
+      id: scanRecord.id || `SCAN-${Date.now().toString().slice(-6)}`,
+      scannedAt: scanRecord.scannedAt || new Date().toISOString(),
+      savedAt: new Date().toISOString()
+    };
+
+    const request = store.put(record);
+
+    request.onsuccess = () => resolve(record);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function deleteDiseaseScanFromDB(id) {
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.DISEASE_SCANS, 'readwrite');
+    const store = tx.objectStore(STORES.DISEASE_SCANS);
+    const request = store.delete(id);
+
+    request.onsuccess = () => resolve(true);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
 
 

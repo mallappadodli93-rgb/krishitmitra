@@ -29,7 +29,10 @@ import {
   saveFarmLocationToDB,
   updateFarmLocationInDB,
   deleteFarmLocationFromDB,
-  setPrimaryFarmLocationInDB
+  setPrimaryFarmLocationInDB,
+  getAllDiseaseScansFromDB,
+  saveDiseaseScanToDB,
+  deleteDiseaseScanFromDB
 } from '../utils/indexedDBStorage';
 
 import {
@@ -304,6 +307,37 @@ export async function setPrimaryFarmLocation(id) {
     return await setPrimaryFarmLocationInDB(id);
   } catch (err) {
     console.error('Failed to set primary farm location in IndexedDB:', err);
+    throw err;
+  }
+}
+
+// ==========================================
+// 6. Crop Disease Scans & AI Diagnosis History
+// ==========================================
+
+export async function fetchDiseaseScans() {
+  try {
+    return await getAllDiseaseScansFromDB();
+  } catch (err) {
+    console.error('Failed to fetch disease scans from IndexedDB:', err);
+    return [];
+  }
+}
+
+export async function saveDiseaseScan(scanRecord) {
+  try {
+    return await saveDiseaseScanToDB(scanRecord);
+  } catch (err) {
+    console.error('Failed to save disease scan to IndexedDB:', err);
+    throw err;
+  }
+}
+
+export async function deleteDiseaseScan(id) {
+  try {
+    return await deleteDiseaseScanFromDB(id);
+  } catch (err) {
+    console.error('Failed to delete disease scan from IndexedDB:', err);
     throw err;
   }
 }
