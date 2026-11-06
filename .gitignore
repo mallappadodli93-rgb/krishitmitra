@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.venv_tf/
+ENV/
+
+# Environment files with sensitive credentials
+.env
+.env.local
+
+# Machine Learning Models (large binary files)
+saved_models/**/*.h5
+saved_models/**/*.keras
+saved_models/**/*.pkl
+saved_models/**/*.joblib
+!saved_models/**/.gitkeep
+
+# Datasets and cache
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+*.csv
+*.zip
+*.tar.gz
+
+# Audio uploads / temp files
+temp_audio/
+uploads/
+saved_models/voice_output/*
+!saved_models/voice_output/.gitkeep
+*.wav
+*.mp3
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+

@@ -1,0 +1,42 @@
+{
+  "dataset_path": "data/raw/crop_yield.csv",
+  "total_samples": 4000,
+  "train_samples": 3200,
+  "test_samples": 800,
+  "features": [
+    "Crop",
+    "Location",
+    "Season",
+    "Soil_Type",
+    "Area_Hectares",
+    "Rainfall_mm",
+    "Temperature_C",
+    "Soil_pH",
+    "Fertilizer_kg",
+    "Pesticide_kg"
+  ],
+  "models_evaluated": {
+    "dummy_baseline": {
+      "model_name": "Baseline (Mean Regressor)",
+      "mae": 12.6425,
+      "rmse": 17.2047,
+      "r2_score": -0.0005
+    },
+    "linear_baseline": {
+      "model_name": "Baseline (Linear Regression)",
+      "mae": 1.5858,
+      "rmse": 3.028,
+      "r2_score": 0.969
+    },
+    "random_forest": {
+      "model_name": "Random Forest Regressor",
+      "mae": 1.5156,
+      "rmse": 3.006,
+      "r2_score": 0.9695
+    }
+  },
+  "performance_improvement": {
+    "mae_reduction_vs_dummy_percent": 88.01,
+    "mae_reduction_vs_linear_percent": 4.43
+  }
+}
