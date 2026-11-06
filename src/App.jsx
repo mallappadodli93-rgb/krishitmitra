@@ -234,6 +234,8 @@ export default function App() {
         <LocationSelectionPage
           onNavigateHome={() => handleNavigate('home')}
           onNavigateDashboard={() => handleNavigate('dashboard')}
+          onNavigateCropRecommendation={() => handleNavigate('crop-recommendation')}
+          onNavigateWeather={() => handleNavigate('weather-info')}
         />
         <OfflineGuideModal />
       </>
