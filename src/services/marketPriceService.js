@@ -731,3 +731,4 @@ export function calculateFarmerRevenue(modalPricePerQuintal, quantityQuintals) {
     pricePerKg: (modalPricePerQuintal / 100).toFixed(2)
   };
 }
+
