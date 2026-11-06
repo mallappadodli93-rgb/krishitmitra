@@ -1,27 +1,64 @@
-# Logs
-logs
-*.log
+# =========================================================================
+# Frontend (Node / Vite / React)
+# =========================================================================
+node_modules/
+dist/
+dist-ssr/
+*.local
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies
-node_modules/
+# =========================================================================
+# Backend (Python / FastAPI / ML)
+# =========================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+.venv_tf/
+ENV/
 
-# Production build
-dist/
-dist-ssr/
-
-# Environment files
+# Environment files with sensitive credentials
+.env
 .env.local
 .env.*.local
 
-# System & Editor files
+# Machine Learning Models (large binary files)
+saved_models/**/*.h5
+saved_models/**/*.keras
+saved_models/**/*.pkl
+saved_models/**/*.joblib
+!saved_models/**/.gitkeep
+
+# Datasets and cache
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+*.csv
+*.zip
+*.tar.gz
+
+# Audio uploads / temp files
+temp_audio/
+uploads/
+saved_models/voice_output/*
+!saved_models/voice_output/.gitkeep
+*.wav
+*.mp3
+
+# =========================================================================
+# IDE & System Files
+# =========================================================================
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
-.idea/
-.vscode/
 *.swp
 *.swo
