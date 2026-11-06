@@ -23,7 +23,13 @@ import {
   importDataFromJSON,
   seedIndexedDBIfEmpty,
   DEFAULT_INDEXEDDB_PROFILE,
-  CROP_SCHEDULE_TEMPLATES
+  DEFAULT_FARM_LOCATIONS,
+  CROP_SCHEDULE_TEMPLATES,
+  getAllFarmLocationsFromDB,
+  saveFarmLocationToDB,
+  updateFarmLocationInDB,
+  deleteFarmLocationFromDB,
+  setPrimaryFarmLocationInDB
 } from '../utils/indexedDBStorage';
 
 import {
@@ -251,6 +257,55 @@ export async function importJSONFile(file) {
     reader.onerror = () => reject(new Error('Failed to read import file'));
     reader.readAsText(file);
   });
+}
+
+// ==========================================
+// 5. Multiple Farm Locations Management
+// ==========================================
+
+export async function fetchFarmLocations() {
+  try {
+    return await getAllFarmLocationsFromDB();
+  } catch (err) {
+    console.error('Failed to fetch farm locations from IndexedDB, using fallback:', err);
+    return DEFAULT_FARM_LOCATIONS;
+  }
+}
+
+export async function saveFarmLocation(locationData) {
+  try {
+    return await saveFarmLocationToDB(locationData);
+  } catch (err) {
+    console.error('Failed to save farm location to IndexedDB:', err);
+    throw err;
+  }
+}
+
+export async function updateFarmLocation(locationData) {
+  try {
+    return await updateFarmLocationInDB(locationData);
+  } catch (err) {
+    console.error('Failed to update farm location in IndexedDB:', err);
+    throw err;
+  }
+}
+
+export async function deleteFarmLocation(id) {
+  try {
+    return await deleteFarmLocationFromDB(id);
+  } catch (err) {
+    console.error('Failed to delete farm location from IndexedDB:', err);
+    throw err;
+  }
+}
+
+export async function setPrimaryFarmLocation(id) {
+  try {
+    return await setPrimaryFarmLocationInDB(id);
+  } catch (err) {
+    console.error('Failed to set primary farm location in IndexedDB:', err);
+    throw err;
+  }
 }
 
 // Re-export notification functions

@@ -6,13 +6,14 @@
 // 4. Farming Reminders (Irrigation, Fertilizer, Inspection, Pest Monitoring)
 
 const DB_NAME = 'KrishiMitra_FarmerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   FARMER_PROFILE: 'farmerProfile',
   FARMING_RECORDS: 'farmingRecords',
   CROP_SCHEDULES: 'cropSchedules',
   FARMING_REMINDERS: 'farmingReminders',
+  FARM_LOCATIONS: 'farmLocations',
 };
 
 // ==========================================
@@ -45,6 +46,61 @@ export const DEFAULT_INDEXEDDB_PROFILE = {
   createdAt: '2026-10-15T08:30:00.000Z',
   updatedAt: new Date().toISOString(),
 };
+
+export const DEFAULT_FARM_LOCATIONS = [
+  {
+    id: 'FARM-LOC-001',
+    name: 'Main Canal Plot (ಮುಖ್ಯ ಜಮೀನು)',
+    surveyNumber: 'Sy No. 142/A',
+    village: 'Niphad',
+    district: 'Nashik',
+    state: 'Maharashtra',
+    address: 'Gat No. 142/A, Pimpalgaon Road, Niphad, Nashik, Maharashtra 422303',
+    lat: 20.0760,
+    lng: 74.0435,
+    landSize: 3.5,
+    landUnit: 'Acres',
+    waterSource: 'Canal & Lift Irrigation',
+    soilType: 'Medium Black Cotton (Regur) Loam',
+    soilPh: 7.2,
+    purpose: 'Main Cereal & Onion Cultivation',
+    isPrimary: true,
+    boundaries: [
+      { lat: 20.0780, lng: 74.0415 },
+      { lat: 20.0782, lng: 74.0455 },
+      { lat: 20.0745, lng: 74.0460 },
+      { lat: 20.0742, lng: 74.0418 }
+    ],
+    createdAt: '2026-10-15T08:00:00.000Z',
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'FARM-LOC-002',
+    name: 'Borewell Orchard Plot (ಕೊಳವೆಬಾವಿ ತೋಟ)',
+    surveyNumber: 'Gat No. 88/2',
+    village: 'Dindori',
+    district: 'Nashik',
+    state: 'Maharashtra',
+    address: 'Survey 88/2, Wani Road, Dindori, Nashik, Maharashtra 422202',
+    lat: 20.2015,
+    lng: 73.8320,
+    landSize: 2.0,
+    landUnit: 'Acres',
+    waterSource: 'Single Borewell with Drip',
+    soilType: 'Red Sandy Loam / Red Soil',
+    soilPh: 6.8,
+    purpose: 'Grapevine & Vegetable Horticulture',
+    isPrimary: false,
+    boundaries: [
+      { lat: 20.2030, lng: 73.8305 },
+      { lat: 20.2032, lng: 73.8340 },
+      { lat: 20.2000, lng: 73.8338 },
+      { lat: 20.1998, lng: 73.8302 }
+    ],
+    createdAt: '2026-10-20T10:30:00.000Z',
+    updatedAt: new Date().toISOString()
+  }
+];
 
 export const DEFAULT_INDEXEDDB_RECORDS = [
   {
@@ -349,6 +405,15 @@ export function openFarmerDB() {
         reminderStore.createIndex('status', 'status', { unique: false });
         reminderStore.createIndex('scheduleId', 'scheduleId', { unique: false });
       }
+
+      // 5. Farm Locations Store (Multiple Farm Plots)
+      if (!db.objectStoreNames.contains(STORES.FARM_LOCATIONS)) {
+        const locationStore = db.createObjectStore(STORES.FARM_LOCATIONS, { keyPath: 'id' });
+        locationStore.createIndex('district', 'district', { unique: false });
+        locationStore.createIndex('village', 'village', { unique: false });
+        locationStore.createIndex('isPrimary', 'isPrimary', { unique: false });
+        locationStore.createIndex('createdAt', 'createdAt', { unique: false });
+      }
     };
 
     request.onsuccess = (event) => resolve(event.target.result);
@@ -406,6 +471,22 @@ export async function seedIndexedDBIfEmpty() {
       const countReq = store.count();
       countReq.onsuccess = () => {
         if (countReq.result === 0) DEFAULT_INDEXEDDB_REMINDERS.forEach(rem => store.put(rem));
+      };
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+
+    // Farm Locations Store (Multiple Farm Locations)
+    await new Promise((resolve) => {
+      if (!db.objectStoreNames.contains(STORES.FARM_LOCATIONS)) {
+        resolve();
+        return;
+      }
+      const tx = db.transaction(STORES.FARM_LOCATIONS, 'readwrite');
+      const store = tx.objectStore(STORES.FARM_LOCATIONS);
+      const countReq = store.count();
+      countReq.onsuccess = () => {
+        if (countReq.result === 0) DEFAULT_FARM_LOCATIONS.forEach(loc => store.put(loc));
       };
       tx.oncomplete = () => resolve();
       tx.onerror = () => resolve();
@@ -825,4 +906,100 @@ export async function importDataFromJSON(rawData) {
     importedReminders
   };
 }
+
+// ==========================================
+// 6. Farm Locations Repository (Multiple Farm Plots)
+// ==========================================
+
+export async function getAllFarmLocationsFromDB() {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve) => {
+    if (!db.objectStoreNames.contains(STORES.FARM_LOCATIONS)) {
+      resolve(DEFAULT_FARM_LOCATIONS);
+      return;
+    }
+    const tx = db.transaction(STORES.FARM_LOCATIONS, 'readonly');
+    const store = tx.objectStore(STORES.FARM_LOCATIONS);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const results = request.result || [];
+      if (results.length === 0) {
+        resolve(DEFAULT_FARM_LOCATIONS);
+      } else {
+        // Sort with primary farm first, then newest
+        results.sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
+        resolve(results);
+      }
+    };
+
+    request.onerror = () => {
+      resolve(DEFAULT_FARM_LOCATIONS);
+    };
+  });
+}
+
+export async function saveFarmLocationToDB(farmLocation) {
+  await seedIndexedDBIfEmpty();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.FARM_LOCATIONS, 'readwrite');
+    const store = tx.objectStore(STORES.FARM_LOCATIONS);
+
+    const newLocation = {
+      ...farmLocation,
+      id: farmLocation.id || `FARM-LOC-${Date.now().toString().slice(-4)}`,
+      createdAt: farmLocation.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const request = store.put(newLocation);
+
+    request.onsuccess = () => resolve(newLocation);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function updateFarmLocationInDB(farmLocation) {
+  return saveFarmLocationToDB(farmLocation);
+}
+
+export async function deleteFarmLocationFromDB(id) {
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.FARM_LOCATIONS, 'readwrite');
+    const store = tx.objectStore(STORES.FARM_LOCATIONS);
+    const request = store.delete(id);
+
+    request.onsuccess = () => resolve(true);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+export async function setPrimaryFarmLocationInDB(id) {
+  const locations = await getAllFarmLocationsFromDB();
+  const db = await openFarmerDB();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.FARM_LOCATIONS, 'readwrite');
+    const store = tx.objectStore(STORES.FARM_LOCATIONS);
+
+    locations.forEach((loc) => {
+      const updated = {
+        ...loc,
+        isPrimary: loc.id === id,
+        updatedAt: new Date().toISOString()
+      };
+      store.put(updated);
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
 
