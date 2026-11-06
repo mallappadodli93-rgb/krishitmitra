@@ -66,118 +66,9 @@ import {
   deleteDiseaseScan,
   fetchFarmLocations
 } from '../services/farmerDataService';
+import { TARGET_12_DEMO_SAMPLES } from '../services/leafDemoData';
 
-// 12 High-Quality Demo Samples Covering Diverse Crops (Zero-Camera Instant Evaluation)
-const DEMO_LEAF_SAMPLES = [
-  {
-    id: 'demo-tomato-early-blight',
-    cropId: 'tomato',
-    cropName: 'Tomato',
-    diseaseName: 'Tomato Early Blight (Alternaria solani)',
-    sampleImage: 'https://images.unsplash.com/photo-1592841200221-a6898f307baa?w=800&auto=format&fit=crop&q=80',
-    location: 'Raichur Vegetable Plot 1',
-    hint: 'Tomato foliage with concentric ring target spots'
-  },
-  {
-    id: 'demo-rice-blast',
-    cropId: 'rice',
-    cropName: 'Rice / Paddy',
-    diseaseName: 'Rice Blast (Magnaporthe oryzae)',
-    sampleImage: 'https://images.unsplash.com/photo-1536657464919-892534f60d6e?w=800&auto=format&fit=crop&q=80',
-    location: 'Koppal Canal Field',
-    hint: 'Paddy leaf with spindle-shaped necrotic lesions'
-  },
-  {
-    id: 'demo-wheat-rust',
-    cropId: 'wheat',
-    cropName: 'Wheat',
-    diseaseName: 'Wheat Stripe / Yellow Rust (Puccinia striiformis)',
-    sampleImage: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=800&auto=format&fit=crop&q=80',
-    location: 'Belagavi Rabi Farm',
-    hint: 'Linear parallel yellow rust pustules on wheat'
-  },
-  {
-    id: 'demo-maize-blight',
-    cropId: 'maize',
-    cropName: 'Maize (Corn)',
-    diseaseName: 'Maydis Leaf Blight (Bipolaris maydis)',
-    sampleImage: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=800&auto=format&fit=crop&q=80',
-    location: 'Davanagere Corn Field',
-    hint: 'Elongated tan-brown blighted lesions'
-  },
-  {
-    id: 'demo-cotton-curl',
-    cropId: 'cotton',
-    cropName: 'Cotton',
-    diseaseName: 'Cotton Leaf Curl Virus (CLCuV)',
-    sampleImage: 'https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=800&auto=format&fit=crop&q=80',
-    location: 'Ballari Black Soil Farm',
-    hint: 'Upward leaf curling & vein enations'
-  },
-  {
-    id: 'demo-chilli-anthracnose',
-    cropId: 'chilli',
-    cropName: 'Chilli / Green Pepper',
-    diseaseName: 'Chilli Anthracnose / Fruit Rot',
-    sampleImage: 'https://images.unsplash.com/photo-1588252303782-cb80119abd6d?w=800&auto=format&fit=crop&q=80',
-    location: 'Byadagi Chilli Plot',
-    hint: 'Sunken necrotic spots on chilli pods & twigs'
-  },
-  {
-    id: 'demo-potato-blight',
-    cropId: 'potato',
-    cropName: 'Potato',
-    diseaseName: 'Potato Late Blight (Phytophthora infestans)',
-    sampleImage: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=800&auto=format&fit=crop&q=80',
-    location: 'Hassan Potato Farm',
-    hint: 'Water-soaked purplish lesions on potato canopy'
-  },
-  {
-    id: 'demo-groundnut-tikka',
-    cropId: 'groundnut',
-    cropName: 'Groundnut (Peanut)',
-    diseaseName: 'Tikka Leaf Spot (Cercospora)',
-    sampleImage: 'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=800&auto=format&fit=crop&q=80',
-    location: 'Tumakuru Groundnut Plot',
-    hint: 'Circular leaf spots with chlorotic yellow rings'
-  },
-  {
-    id: 'demo-mango-anthracnose',
-    cropId: 'mango',
-    cropName: 'Mango',
-    diseaseName: 'Mango Anthracnose (Colletotrichum)',
-    sampleImage: 'https://images.unsplash.com/photo-1553279768-865429fa0078?w=800&auto=format&fit=crop&q=80',
-    location: 'Srinivaspur Mango Orchard',
-    hint: 'Tear-stain dark lesions on mango foliage'
-  },
-  {
-    id: 'demo-banana-sigatoka',
-    cropId: 'banana',
-    cropName: 'Banana',
-    diseaseName: 'Sigatoka Leaf Spot',
-    sampleImage: 'https://images.unsplash.com/photo-1528825871115-3581a5387919?w=800&auto=format&fit=crop&q=80',
-    location: 'Nanjangud Banana Plantation',
-    hint: 'Elongated reddish-brown necrotic streaks'
-  },
-  {
-    id: 'demo-grapes-downy',
-    cropId: 'grapes',
-    cropName: 'Grapes',
-    diseaseName: 'Grapevine Downy Mildew',
-    sampleImage: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?w=800&auto=format&fit=crop&q=80',
-    location: 'Vijayapura Vineyard',
-    hint: 'Yellow translucent oil spots with downy growth'
-  },
-  {
-    id: 'demo-healthy-garden',
-    cropId: 'garden',
-    cropName: 'Garden / House Plants',
-    diseaseName: 'Healthy Foliage (No Disease)',
-    sampleImage: 'https://images.unsplash.com/photo-1614594975525-e45190c55d0b?w=800&auto=format&fit=crop&q=80',
-    location: 'Home Garden / Nursery',
-    hint: 'Lush green unblemished foliage (Healthy)'
-  }
-];
+const DEMO_LEAF_SAMPLES = TARGET_12_DEMO_SAMPLES;
 
 export default function DiseaseDetectionPage({ onNavigateHome, onNavigateDashboard }) {
   const { t, language, changeLanguage, languages } = useLanguage();
@@ -1420,7 +1311,11 @@ Always verify serious epidemics with your local Krishi Vigyan Kendra (KVK).
                     <div>
                       <div className="inline-flex items-center gap-1.5 bg-black/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold mb-2">
                         <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                        AI Diagnosis Complete • {detectionResult.confidencePercentage} Confidence
+                        {detectionResult.engineMode === 'gemini_multimodal'
+                          ? '✨ Google Gemini Multimodal Cloud AI'
+                          : '🔬 KrishiMitra Agronomic Pathology Engine'}
+                        <span>•</span>
+                        <span>{detectionResult.confidencePercentage} Confidence</span>
                       </div>
                       <h3 className="text-2xl font-black text-white">
                         {detectionResult.diseaseName}
@@ -1437,6 +1332,34 @@ Always verify serious epidemics with your local Krishi Vigyan Kendra (KVK).
                     </div>
                   </div>
                 </div>
+
+                {/* Engine Mode Notification Pill */}
+                {detectionResult.needsApiKeyNotice && (
+                  <div className="px-6 -mb-2">
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-900">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <span>Diagnosed via <strong>KrishiMitra Agronomic Pathology Engine</strong>. Want live cloud multimodal image analysis?</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenApiKeyModal}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold whitespace-nowrap self-start sm:self-auto transition-colors shadow-sm"
+                      >
+                        Add Gemini Key
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {detectionResult.geminiFallbackNotice && (
+                  <div className="px-6 -mb-2">
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 flex items-center gap-2">
+                      <Info className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      <span>{detectionResult.geminiFallbackNotice}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* SIDE-BY-SIDE SUMMARY */}
                 <div className="px-6 grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">

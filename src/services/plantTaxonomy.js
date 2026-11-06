@@ -119,3 +119,4 @@ export function findCropMetadata(idOrName) {
     (c.scientificName && c.scientificName.toLowerCase().includes(q))
   ) || null;
 }
+
