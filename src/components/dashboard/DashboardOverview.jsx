@@ -60,7 +60,8 @@ export default function DashboardOverview({
   onOpenAIAssistant,
   onOpenRecords,
   onOpenCalendar,
-  onOpenProfilePage
+  onOpenProfilePage,
+  onOpenMarketPrices
 }) {
   const { t, language } = useLanguage();
 
@@ -877,7 +878,7 @@ export default function DashboardOverview({
             </div>
             <button
               type="button"
-              onClick={onOpenWeather}
+              onClick={onOpenMarketPrices || (() => { window.location.hash = 'market-prices'; })}
               className="text-emerald-800 font-bold hover:underline shrink-0"
             >
               {language === 'kn' ? 'ಎಲ್ಲ ದರಗಳು →' : language === 'hi' ? 'सभी भाव →' : 'All Rates →'}

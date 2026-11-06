@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sprout, User, LogOut, Menu, X, Sparkles, LayoutDashboard, Globe, ChevronDown, CheckCircle, BookOpen, WifiOff, Wifi, FileText, Calendar } from 'lucide-react';
+import { Sprout, User, LogOut, Menu, X, Sparkles, LayoutDashboard, Globe, ChevronDown, CheckCircle, BookOpen, WifiOff, Wifi, FileText, Calendar, TrendingUp } from 'lucide-react';
 import Button from '../common/Button';
 import { useLanguage } from '../../context/LanguageContext';
 import { useOffline } from '../../context/OfflineContext';
@@ -18,6 +18,7 @@ export default function Navbar({
   onOpenDiseaseDetection,
   onOpenWeather,
   onOpenAIAssistant,
+  onOpenMarketPrices,
   onNavigateHome
 }) {
   const { language, changeLanguage, t, languages } = useLanguage();
@@ -144,6 +145,18 @@ export default function Navbar({
             >
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
               <span>{t('navAiAssistant')}</span>
+            </button>
+
+            {/* Market Prices Link */}
+            <button
+              onClick={() => {
+                if (onOpenMarketPrices) onOpenMarketPrices();
+                else window.location.hash = 'market-prices';
+              }}
+              className="text-sm font-bold text-slate-700 hover:text-emerald-600 transition flex items-center gap-1.5"
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <span>{t('navMarketPrices') || 'Market Rates'}</span>
             </button>
           </nav>
 
@@ -355,6 +368,17 @@ export default function Navbar({
             >
               <Sparkles className="w-4 h-4 text-emerald-600" />
               <span>{t('navAiAssistant')}</span>
+            </button>
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (onOpenMarketPrices) onOpenMarketPrices();
+                else window.location.hash = 'market-prices';
+              }}
+              className="text-left px-3 py-2.5 rounded-xl text-sm font-bold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 flex items-center gap-2"
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <span>{t('navMarketPrices') || 'Market Rates'}</span>
             </button>
             <button
               onClick={() => {

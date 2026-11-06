@@ -15,7 +15,7 @@ import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { mockMarketPrices } from '../../data/mockData';
 
-export default function MarketPricesPreview() {
+export default function MarketPricesPreview({ onOpenFullMarketPrices }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -58,12 +58,21 @@ export default function MarketPricesPreview() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 hidden sm:inline">Official source:</span>
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-semibold border border-emerald-200">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>Agmarknet & eNAM Synced</span>
             </div>
+            <button
+              onClick={() => {
+                if (onOpenFullMarketPrices) onOpenFullMarketPrices();
+                else window.location.hash = 'market-prices';
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-700/20 flex items-center gap-1.5 transition active:scale-95"
+            >
+              <TrendingUp className="w-4 h-4 text-emerald-200" />
+              <span>Full Market Dashboard →</span>
+            </button>
           </div>
         </div>
 
@@ -198,7 +207,15 @@ export default function MarketPricesPreview() {
           {/* Footer note */}
           <div className="p-4 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
             <span>Prices quoted are based on standard APMC auction averages. Actual grade pricing may vary.</span>
-            <span className="font-semibold text-emerald-700">Need transport to Mandi? Check Kisan Rath logistics</span>
+            <button
+              onClick={() => {
+                if (onOpenFullMarketPrices) onOpenFullMarketPrices();
+                else window.location.hash = 'market-prices';
+              }}
+              className="font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
+            >
+              <span>Explore All 12 Commodities, Mandi Comparisons & Profit Calculator →</span>
+            </button>
           </div>
         </div>
 

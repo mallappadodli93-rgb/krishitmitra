@@ -14,7 +14,8 @@ export default function DashboardPage({
   onNavigateLocation,
   onNavigateRecords,
   onNavigateCalendar,
-  onNavigateProfile
+  onNavigateProfile,
+  onNavigateMarketPrices
 }) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -24,7 +25,10 @@ export default function DashboardPage({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   const handleSelectTab = (tabId) => {
-    if (tabId === 'crop-recommendation') {
+    if (tabId === 'market-prices') {
+      if (onNavigateMarketPrices) onNavigateMarketPrices();
+      else window.location.hash = 'market-prices';
+    } else if (tabId === 'crop-recommendation') {
       window.location.hash = 'crop-recommendation';
     } else if (tabId === 'disease-detection') {
       window.location.hash = 'disease-detection';
@@ -107,6 +111,10 @@ export default function DashboardPage({
               onOpenProfilePage={() => {
                 if (onNavigateProfile) onNavigateProfile();
                 else window.location.hash = 'farmer-profile';
+              }}
+              onOpenMarketPrices={() => {
+                if (onNavigateMarketPrices) onNavigateMarketPrices();
+                else window.location.hash = 'market-prices';
               }}
             />
           )}

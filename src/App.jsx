@@ -25,6 +25,7 @@ import AIAssistantPage from './pages/AIAssistantPage';
 import FarmerProfilePage from './pages/FarmerProfilePage';
 import MyFarmingRecordsPage from './pages/MyFarmingRecordsPage';
 import FarmingCalendarPage from './pages/FarmingCalendarPage';
+import MarketPricesPage from './pages/MarketPricesPage';
 import { getActiveUser, setActiveUser, logoutFarmer, DEFAULT_DEMO_FARMER } from './utils/authStorage';
 import { useOffline } from './context/OfflineContext';
 import { Bot, ArrowUp, CheckCircle2 } from 'lucide-react';
@@ -42,6 +43,7 @@ export default function App() {
     if (hash === '#farmer-profile') return 'farmer-profile';
     if (hash === '#farming-records') return 'farming-records';
     if (hash === '#calendar') return 'calendar';
+    if (hash === '#market-prices' || hash === '#mandi-rates') return 'market-prices';
     if (hash === '#login') return 'login';
     if (hash === '#register') return 'register';
     return 'home';
@@ -87,6 +89,8 @@ export default function App() {
         setCurrentView('farming-records');
       } else if (hash === '#calendar') {
         setCurrentView('calendar');
+      } else if (hash === '#market-prices' || hash === '#mandi-rates') {
+        setCurrentView('market-prices');
       } else if (hash === '#login') {
         setCurrentView('login');
       } else if (hash === '#register') {
@@ -313,6 +317,20 @@ export default function App() {
     );
   }
 
+  // Render Dedicated Agricultural Market Price Dashboard Page View
+  if (currentView === 'market-prices') {
+    return (
+      <>
+        <OfflineBanner />
+        <MarketPricesPage
+          onNavigateHome={() => handleNavigate('home')}
+          onNavigateDashboard={() => handleNavigate('dashboard')}
+        />
+        <OfflineGuideModal />
+      </>
+    );
+  }
+
   // Render Dedicated Farmer Dashboard View
   if (currentView === 'dashboard') {
     return (
@@ -334,6 +352,7 @@ export default function App() {
           onNavigateRecords={() => handleNavigate('farming-records')}
           onNavigateCalendar={() => handleNavigate('calendar')}
           onNavigateProfile={() => handleNavigate('farmer-profile')}
+          onNavigateMarketPrices={() => handleNavigate('market-prices')}
         />
         <OfflineGuideModal />
       </>
@@ -373,6 +392,7 @@ export default function App() {
         onOpenDiseaseDetection={() => handleNavigate('disease-detection')}
         onOpenWeather={() => handleNavigate('weather-info')}
         onOpenAIAssistant={() => handleNavigate('ai-assistant')}
+        onOpenMarketPrices={() => handleNavigate('market-prices')}
         onNavigateHome={() => handleNavigate('home')}
       />
 
@@ -396,14 +416,14 @@ export default function App() {
           onOpenWeather={() => handleNavigate('weather-info')}
           onOpenSoilInfo={() => setIsSoilInfoOpen(true)}
           onOpenAIAssistant={() => handleNavigate('ai-assistant')}
-          onOpenMarketPrice={() => scrollToSection('mandi')}
+          onOpenMarketPrice={() => handleNavigate('market-prices')}
         />
 
         {/* Weather Prediction Section (with link to dedicated Weather Page) */}
         <WeatherWidget onOpenFullWeather={() => handleNavigate('weather-info')} />
 
         {/* Live Mandi Market Prices */}
-        <MarketPricesPreview />
+        <MarketPricesPreview onOpenFullMarketPrices={() => handleNavigate('market-prices')} />
 
         {/* Crop Advisory Calendar */}
         <CropAdvisoryPreview />
@@ -423,6 +443,7 @@ export default function App() {
         onOpenWeather={() => handleNavigate('weather-info')}
         onOpenAIAssistant={() => handleNavigate('ai-assistant')}
         onOpenSoilInfo={() => setIsSoilInfoOpen(true)}
+        onOpenMarketPrices={() => handleNavigate('market-prices')}
       />
 
       {/* --- Interactive Modals --- */}

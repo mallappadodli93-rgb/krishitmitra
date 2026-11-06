@@ -18,6 +18,7 @@ export default function Footer({
   onOpenWeather,
   onOpenAIAssistant,
   onOpenSoilInfo,
+  onOpenMarketPrices
 }) {
   const { t } = useLanguage();
   const currentYear = new Date().getFullYear();
@@ -116,7 +117,7 @@ export default function Footer({
               </li>
               <li>
                 <button
-                  onClick={() => scrollTo('mandi')}
+                  onClick={onOpenMarketPrices || (() => scrollTo('mandi'))}
                   className="hover:text-emerald-400 transition-colors text-left"
                 >
                   {t('featMarketTitle')}

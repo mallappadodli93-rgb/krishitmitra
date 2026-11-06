@@ -13,7 +13,8 @@ import {
   PhoneCall,
   ChevronRight,
   FileText,
-  Calendar
+  Calendar,
+  TrendingUp
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -32,6 +33,7 @@ export default function DashboardSidebar({
     { id: 'dashboard', label: t('navDashboard'), icon: LayoutDashboard },
     { id: 'farming-records', label: t('navFarmingRecords') || 'Farming Records', icon: FileText, badge: 'IndexedDB' },
     { id: 'calendar', label: t('navCalendar') || 'Smart Calendar', icon: Calendar, badge: 'Alerts' },
+    { id: 'market-prices', label: t('navMarketPrices') || 'Market Prices', icon: TrendingUp, badge: 'APMC' },
     { id: 'crop-recommendation', label: t('navCropRecommendation'), icon: Sprout },
     { id: 'disease-detection', label: t('navDiseaseDetection'), icon: ScanLine },
     { id: 'weather', label: t('navWeather'), icon: CloudSun },

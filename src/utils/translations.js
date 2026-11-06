@@ -19,6 +19,7 @@ export const TRANSLATIONS = {
     // Navigation
     navHome: 'ಮುಖಪುಟ',
     navDashboard: 'ಡ್ಯಾಶ್‌ಬೋರ್ಡ್',
+    navMarketPrices: 'ಮಾರುಕಟ್ಟೆ ದರಗಳು',
     navFarmingRecords: 'ಕೃಷಿ ದಾಖಲೆಗಳು',
     navCalendar: 'ಸ್ಮಾರ್ಟ್ ಕ್ಯಾಲೆಂಡರ್',
     navFarmerProfile: 'ರೈತರ ಪ್ರೊಫೈಲ್',
@@ -169,6 +170,7 @@ export const TRANSLATIONS = {
     // Navigation
     navHome: 'Home',
     navDashboard: 'Dashboard',
+    navMarketPrices: 'Market Rates',
     navFarmingRecords: 'Farming Records',
     navCalendar: 'Smart Calendar',
     navFarmerProfile: 'Farmer Profile',
@@ -319,6 +321,7 @@ export const TRANSLATIONS = {
     // Navigation
     navHome: 'होम',
     navDashboard: 'डैशबोर्ड',
+    navMarketPrices: 'मंडी भाव',
     navFarmingRecords: 'कृषि रिकॉर्ड्स',
     navCalendar: 'स्मार्ट कैलेंडर',
     navFarmerProfile: 'किसान प्रोफ़ाइल',
