@@ -31,6 +31,7 @@ import Card from '../components/common/Card';
 import { getActiveUser } from '../utils/authStorage';
 import { useOffline } from '../context/OfflineContext';
 import { useLanguage } from '../context/LanguageContext';
+import { callCropRecommendationAPI } from '../services/apiClient';
 
 // Realistic Crop Knowledge Database for Mock JavaScript Recommendation Logic
 const CROPS_DATABASE = {
@@ -259,7 +260,7 @@ export default function CropRecommendationPage({ onNavigateHome, onNavigateDashb
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -267,17 +268,46 @@ export default function CropRecommendationPage({ onNavigateHome, onNavigateDashb
     setRecommendations(null);
     setAnalysisStep('Evaluating soil pH, texture & organic matter holding...');
 
+    // Attempt live API query to Member 3 FastAPI Crop Recommendation service
+    let backendCrops = null;
+    try {
+      const payload = {
+        latitude: 12.2958,
+        longitude: 76.6394,
+        district: formData.location.split(',')[0]?.trim() || 'Mysuru',
+        state: 'Karnataka',
+        soil_type: formData.soilType,
+        soil_ph: parseFloat(formData.soilPh) || 7.0,
+        water_availability: formData.availableWater,
+        season: 'Rabi',
+        temperature_c: parseFloat(formData.temperature) || 28.0
+      };
+      backendCrops = await callCropRecommendationAPI(payload);
+    } catch (err) {
+      console.warn('Backend crop recommendation API offline, using local ICAR model:', err);
+    }
+
     setTimeout(() => {
       setAnalysisStep('Cross-referencing ICAR agro-climatic seasonal rainfall data...');
-    }, 500);
+    }, 450);
 
     setTimeout(() => {
       setAnalysisStep('Calculating suitability index and expected harvest margins...');
-    }, 1000);
+    }, 900);
 
     setTimeout(() => {
       setIsAnalyzing(false);
-      const results = calculateRecommendations();
+      let results = calculateRecommendations();
+      if (backendCrops && backendCrops.primary_recommendations && backendCrops.primary_recommendations.length > 0) {
+        const top = backendCrops.primary_recommendations[0];
+        results[0] = {
+          ...results[0],
+          name: `${top.crop_name} (${top.botanical_name || 'AgriSmart Backend'})`,
+          suitabilityScore: `${Math.round(top.suitability_score * 100)}%`,
+          farmingTips: top.reasons && top.reasons.length > 0 ? top.reasons : results[0].farmingTips,
+          sourceBadge: 'AgriSmart AI Live Multi-Factor Model'
+        };
+      }
       setRecommendations(results);
       // Auto-cache viewed crop recommendations locally for offline access
       results.forEach((c) => {

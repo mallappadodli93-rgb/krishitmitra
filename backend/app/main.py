@@ -152,6 +152,24 @@ app.include_router(water_router, prefix="/api/v1/water", include_in_schema=False
 app.include_router(location_router, prefix="/api/location")
 app.include_router(location_router, prefix="/api/v1/location", include_in_schema=False)
 
+# 4. Register Unified AI/ML Microservice Routers (/ai/* and /api/v1/*)
+try:
+    import sys
+    from pathlib import Path
+    _ROOT = Path(__file__).resolve().parent.parent.parent
+    if str(_ROOT) not in sys.path:
+        sys.path.insert(0, str(_ROOT))
+
+    import importlib.util
+    _ai_spec = importlib.util.spec_from_file_location("ai_service_routes", _ROOT / "app/routes/ai_service_routes.py")
+    if _ai_spec and _ai_spec.loader:
+        _ai_mod = importlib.util.module_from_spec(_ai_spec)
+        _ai_spec.loader.exec_module(_ai_mod)
+        app.include_router(_ai_mod.router)
+        logger.info("Successfully mounted Unified AI Microservices (/ai/*) into backend")
+except Exception as _e:
+    logger.warning(f"Could not mount AI microservices: {_e}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT, reload=settings.DEBUG)

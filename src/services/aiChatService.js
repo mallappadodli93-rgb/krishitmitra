@@ -1,6 +1,8 @@
+import { callChatbotAPI } from './apiClient';
+
 // AI Farming Assistant Service
 // Supports Multilingual Answers: Kannada (kn), English (en), Hindi (hi)
-// Ready for future AI API integration (e.g. Google Gemini, OpenAI, or Custom Agronomy Backend)
+// Integrates with AgriSmart AI FastAPI backend (/ai/chatbot) with seamless local expert dictionary fallback.
 
 const PREDEFINED_RESPONSES = {
   kn: {
@@ -486,26 +488,43 @@ function matchAgronomyResponse(query, lang = 'kn') {
 
 /**
  * Send chat message to assistant service.
- * Simulates asynchronous network latency, fully ready for future AI API integration.
+ * First queries the live AgriSmart AI FastAPI backend (/ai/chatbot).
+ * Gracefully falls back to local multilingual expert knowledge base if backend is offline.
  */
 export async function sendChatMessage(userMessage, chatHistory = [], currentLanguage = 'kn') {
-  // Predefined demo responses with realistic simulated typing latency (600ms - 900ms)
-  return new Promise((resolve) => {
-    const delay = Math.floor(650 + Math.random() * 300);
-    setTimeout(() => {
-      // Determine language from parameter or localStorage fallback
-      let lang = currentLanguage;
-      if (!lang) {
-        try {
-          lang = localStorage.getItem('krishimitra_language') || 'kn';
-        } catch (e) {
-          lang = 'kn';
-        }
-      }
+  // Determine language from parameter or localStorage fallback
+  let lang = currentLanguage;
+  if (!lang) {
+    try {
+      lang = localStorage.getItem('krishimitra_language') || 'kn';
+    } catch (e) {
+      lang = 'kn';
+    }
+  }
 
+  // 1. Attempt live API call to AgriSmart AI FastAPI backend
+  try {
+    const apiResult = await callChatbotAPI(userMessage, lang, chatHistory);
+    if (apiResult && apiResult.success && apiResult.reply) {
+      return {
+        text: apiResult.reply,
+        source: 'backend-ai',
+        success: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+    }
+  } catch (err) {
+    console.warn('API error in sendChatMessage, using local fallback:', err);
+  }
+
+  // 2. Local Fallback with realistic agronomy response
+  return new Promise((resolve) => {
+    const delay = Math.floor(450 + Math.random() * 250);
+    setTimeout(() => {
       const responseText = matchAgronomyResponse(userMessage, lang);
       resolve({
         text: responseText,
+        source: 'local-expert',
         success: true,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
