@@ -1,0 +1,25 @@
+# Environment & Secret Files
+.env
+.env.local
+*.env
+
+# Firebase & Cloud Credentials (NEVER COMMIT)
+*firebase*.json
+*serviceAccount*.json
+service_account.json
+credentials.json
+secrets.json
+
+# Python Virtual Environments
+venv/
+env/
+.venv/
+
+# Python Bytecode & Caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+backend/.env
+backend/serviceAccountKey.json
+

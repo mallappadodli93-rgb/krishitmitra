@@ -12,7 +12,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # =========================================================================
-# Backend (Python / FastAPI / ML)
+# Backend & Python Virtual Environments
 # =========================================================================
 __pycache__/
 *.py[cod]
@@ -24,11 +24,21 @@ venv/
 .venv/
 .venv_tf/
 ENV/
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Environment files with sensitive credentials
+# Environment files & Secrets (NEVER COMMIT)
 .env
 .env.local
 .env.*.local
+*.env
+*firebase*.json
+*serviceAccount*.json
+service_account.json
+credentials.json
+secrets.json
+serviceAccountKey.json
 
 # Machine Learning Models (large binary files)
 saved_models/**/*.h5
